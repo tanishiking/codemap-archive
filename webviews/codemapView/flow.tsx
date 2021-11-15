@@ -51,11 +51,11 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         switch (message.command) {
           case "add_node":
             const data = message.data;
-            console.log(message.data)
+            console.log(message.data);
             if (!validateAddNode(data)) {
               console.error(validateAddNode.errors);
               return;
-            } 
+            }
             const temp: TemporalNode = {
               id: uuidv4(),
               label: data.label,
@@ -119,6 +119,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       };
 
       setElements((es) => es.concat(newNode));
+      setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
     }
   };
 
@@ -126,7 +127,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     event: MouseEvent,
     node: Node<NodeData | undefined>
   ) => {
-    event.preventDefault() // (need this?)
+    event.preventDefault(); // (need this?)
     const data = node.data;
     if (data) {
       const payload: OpenInEditor = {
@@ -137,7 +138,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         command: "open_in_editor",
         data: payload,
       };
-      console.log(message)
+      console.log(message);
       props.vscode.postMessage(message);
     } else console.error(`No data available for nodeId: ${node.id}`);
   };
