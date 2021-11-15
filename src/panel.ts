@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
-import { Message } from "../shared/message";
+import { AddNode } from "../shared/messages/toWebview/addNode";
+import { Message } from "../shared/messages/toWebview/message";
+import { getMessageValidator } from "../shared/messages/fromWebview/message";
+import { getOpenInEditorValidator } from "../shared/messages/fromWebview/openInEditor";
+import { Position } from "../shared/messages/position";
 
 export class CodeMapPanel {
   public static readonly title = "Code Map";
@@ -30,9 +34,12 @@ export class CodeMapPanel {
     }
   }
 
-  public addNode(message: Message) {
-    console.log(`postMessage: ${message}`);
-    this.panel.webview.postMessage(message);
+  public async addNode(payload: AddNode): Promise<boolean> {
+    const message: Message = {
+      command: "add_node",
+      data: payload,
+    };
+    return this.panel.webview.postMessage(message);
   }
 
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -40,6 +47,26 @@ export class CodeMapPanel {
     this.extensionUri = extensionUri;
 
     this.updateWebview();
+
+    const validateMessage = getMessageValidator();
+    const validateOpenIneditor = getOpenInEditorValidator();
+
+    this.panel.webview.onDidReceiveMessage(async (message) => {
+      if (!validateMessage(message)) {
+        console.error(validateMessage.errors);
+        return;
+      }
+      switch (message.command) {
+        case "open_in_editor":
+          const data = message.data;
+          if (!validateOpenIneditor(data)) {
+            console.error(validateOpenIneditor.errors);
+            return;
+          }
+          await this.openInEditor(data.pos);
+          break;
+      }
+    });
 
     this.panel.onDidDispose(
       () => {
@@ -113,5 +140,16 @@ export class CodeMapPanel {
 				<script src="${scriptUri}"></script>
 			</body>
 			</html>`;
+  }
+
+  private async openInEditor(pos: Position): Promise<void> {
+    const uri = vscode.Uri.parse(pos.uri, true);
+    const start = new vscode.Position(pos.line, pos.character);
+    const selection = new vscode.Selection(start, start)
+    await vscode.window.showTextDocument(uri, {
+      viewColumn: vscode.ViewColumn.Beside,
+      selection
+    });
+    return;
   }
 }

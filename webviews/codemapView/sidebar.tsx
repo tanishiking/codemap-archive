@@ -13,25 +13,10 @@ export const SidebarComponent = (props: { nodes: TemporalNode[] }) => {
       <div className="description">
         You can drag these nodes to the pane on the right.
       </div>
-      <div
-        className="react-flow__node"
-        onDragStart={(event) =>
-          onDragStart(event, {
-            id: "test",
-            label: "hoge",
-            pos: {
-              line: 0,
-              character: 0,
-            },
-          })
-        }
-        draggable
-      >
-        test
-      </div>
       {props.nodes.map((node) => (
         <div
           className="react-flow__node"
+          key={node.id}
           onDragStart={(event) => onDragStart(event, node)}
           draggable
         >

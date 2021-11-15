@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
-import { Message } from "../shared/message";
+import { AddNode } from "../shared/messages/toWebview/AddNode";
 import { CodeMapPanel } from "./panel";
 
 // this method is called when your extension is activated
@@ -24,25 +24,28 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  const disposable2 = vscode.commands.registerCommand("codemap.add", () => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return
-    const selection = editor.selection;
-    const text = editor.document.getText(selection);
+  const disposable2 = vscode.commands.registerCommand(
+    "codemap.add",
+    () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      const selection = editor.selection;
+      const text = editor.document.getText(selection);
 
-    const panel = CodeMapPanel.createOrShow(context.extensionUri);
-    if (!panel) return
-    const start = selection.start
-    const message: Message = {
-      command: 'addNode',
-      label: text,
-      pos: {
-        line: start.line,
-        character: start.character
-      },
+      const panel = CodeMapPanel.createOrShow(context.extensionUri);
+      if (!panel) return;
+      const start = selection.start;
+      const payload: AddNode = {
+        label: text,
+        pos: {
+          uri: editor.document.uri.toString(),
+          line: start.line,
+          character: start.character,
+        },
+      };
+      panel.addNode(payload);
     }
-    panel.addNode(message)
-  });
+  );
 
   context.subscriptions.push(disposable1, disposable2);
 }

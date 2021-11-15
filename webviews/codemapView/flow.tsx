@@ -1,47 +1,27 @@
 import * as React from "react";
-import { useState, useRef, useEffect, DragEvent } from "react";
+import { useState, useRef, useEffect, DragEvent, MouseEvent } from "react";
 import { WebviewApi } from "vscode-webview";
 import ReactFlow, {
   Elements,
   OnLoadParams,
   ReactFlowProvider,
-  MiniMap,
+  Node,
+  FlowElement,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 
-import { getValidator } from "../../shared/message";
-import { getValidator as getTempNodeValidator } from "./temporalNode";
+import { getMessageValidator } from "../../shared/messages/toWebview/message";
+import { getAddNodeValidator } from "../../shared/messages/toWebview/AddNode";
+import { OpenInEditor } from "../../shared/messages/fromWebview/openInEditor";
+import { Message } from "../../shared/messages/fromWebview/message";
+
+import { getValidator as getTempNodeValidator, NodeData } from "./temporalNode";
 import { SidebarComponent } from "./sidebar";
 import { TemporalNode } from "./temporalNode";
 import { StateType } from "./persistence";
 
-const initialElements = [
-  {
-    id: "1",
-    type: "input", // input node
-    data: { label: "Input Node" },
-    position: { x: 250, y: 25 },
-  },
-  // default node
-  {
-    id: "2",
-    // you can also pass a React component as a label
-    data: { label: "Default Node" },
-    position: { x: 250, y: 30 },
-  },
-  {
-    id: "3",
-    type: "output", // output node
-    data: { label: "Output Node" },
-    position: { x: 250, y: 250 },
-  },
-  // animated edge
-  { id: "e1-2", source: "1", target: "2", animated: true },
-  { id: "e2-3", source: "2", target: "3" },
-];
-
-export const FlowComponent = (props: {vscode: WebviewApi<StateType>}) => {
-  const [elements, setElements] = useState<Elements>(initialElements);
+export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
+  const [elements, setElements] = useState<Elements<NodeData | undefined>>([]);
   const [reactFlowInstance, setReactFlowInstance] =
     useState<OnLoadParams | null>(null);
   // the temporal nodes resting on the sidebar
@@ -49,37 +29,39 @@ export const FlowComponent = (props: {vscode: WebviewApi<StateType>}) => {
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const previousState = props.vscode.getState()
+    const previousState = props.vscode.getState();
     if (previousState) {
-      const flow = previousState.flow
+      const flow = previousState.flow;
       setElements(flow.elements || []);
       // TODO: restore the zooming state
       // useZoomPanHelper()
       // const [x = 0, y = 0] = flow.position;
       // transform({ x, y, zoom: flow.zoom || 0 });
-      setTempNodes(previousState.tempNodes)
+      setTempNodes(previousState.tempNodes);
     }
-    const validateMessage = getValidator();
-    console.log("useEffect in flow")
+    const validateMessage = getMessageValidator();
+    const validateAddNode = getAddNodeValidator();
 
     window.addEventListener("message", (event: MessageEvent) => {
-      console.log(`message received: ${event.data}`)
       const message = event.data; // The json data that the extension sent
       if (!validateMessage(message)) {
         console.error(validateMessage.errors);
         return;
       } else {
         switch (message.command) {
-          case "addNode":
+          case "add_node":
+            const data = message.data;
+            console.log(message.data)
+            if (!validateAddNode(data)) {
+              console.error(validateAddNode.errors);
+              return;
+            } 
             const temp: TemporalNode = {
               id: uuidv4(),
-              label: message.label,
-              pos: message.pos,
+              label: data.label,
+              pos: data.pos,
             };
             setTempNodes((nodes) => nodes.concat(temp));
-            break;
-          default:
-            console.error(`Unsupported message.command ${message.command}`);
             break;
         }
       }
@@ -95,11 +77,10 @@ export const FlowComponent = (props: {vscode: WebviewApi<StateType>}) => {
       const state: StateType = {
         flow: reactFlowInstance.toObject(),
         tempNodes,
-      }
-      props.vscode.setState(state)
+      };
+      props.vscode.setState(state);
     }
-  }, [elements, tempNodes])
-
+  }, [elements, tempNodes]);
 
   const onDragOver = (event: DragEvent) => {
     event.preventDefault();
@@ -131,7 +112,7 @@ export const FlowComponent = (props: {vscode: WebviewApi<StateType>}) => {
         x: event.clientX - reactFlowBounds.left,
         y: event.clientY - reactFlowBounds.top,
       });
-      const newNode = {
+      const newNode: FlowElement<NodeData> = {
         id: data.id,
         position: position,
         data: { label: data.label, pos: data.pos },
@@ -139,6 +120,26 @@ export const FlowComponent = (props: {vscode: WebviewApi<StateType>}) => {
 
       setElements((es) => es.concat(newNode));
     }
+  };
+
+  const onNodeDoubleClick = (
+    event: MouseEvent,
+    node: Node<NodeData | undefined>
+  ) => {
+    event.preventDefault() // (need this?)
+    const data = node.data;
+    if (data) {
+      const payload: OpenInEditor = {
+        label: data.label,
+        pos: data.pos,
+      };
+      const message: Message = {
+        command: "open_in_editor",
+        data: payload,
+      };
+      console.log(message)
+      props.vscode.postMessage(message);
+    } else console.error(`No data available for nodeId: ${node.id}`);
   };
 
   return (
@@ -153,8 +154,8 @@ export const FlowComponent = (props: {vscode: WebviewApi<StateType>}) => {
           onLoad={setReactFlowInstance}
           onDrop={onDrop}
           onDragOver={onDragOver}
-        >
-        </ReactFlow>
+          onNodeDoubleClick={onNodeDoubleClick}
+        ></ReactFlow>
       </div>
       <SidebarComponent nodes={tempNodes} />
     </ReactFlowProvider>
