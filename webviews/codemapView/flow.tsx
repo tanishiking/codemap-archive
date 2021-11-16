@@ -7,6 +7,9 @@ import ReactFlow, {
   ReactFlowProvider,
   Node,
   FlowElement,
+  addEdge,
+  Connection,
+  Edge,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 
@@ -143,12 +146,15 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     } else console.error(`No data available for nodeId: ${node.id}`);
   };
 
+  const onConnect = (params: Connection | Edge) =>
+    setElements((els) => addEdge(params, els));
+
   return (
     <ReactFlowProvider>
       <div
         className="reactflow-wrapper"
         ref={reactFlowWrapper}
-        style={{ height: 300 }}
+        style={{ height: 400 }}
       >
         <ReactFlow
           elements={elements}
@@ -156,6 +162,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           onDrop={onDrop}
           onDragOver={onDragOver}
           onNodeDoubleClick={onNodeDoubleClick}
+          onConnect={onConnect}
         ></ReactFlow>
       </div>
       <SidebarComponent nodes={tempNodes} />
