@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { ViewColumn } from "vscode";
 import { AddNode } from "../shared/messages/toWebview/addNode";
 import { Message } from "../shared/messages/toWebview/message";
 import { getMessageValidator } from "../shared/messages/fromWebview/message";
@@ -145,10 +146,24 @@ export class CodeMapPanel {
   private async openInEditor(pos: Position): Promise<void> {
     const uri = vscode.Uri.parse(pos.uri, true);
     const start = new vscode.Position(pos.line, pos.character);
-    const selection = new vscode.Selection(start, start)
+    const selection = new vscode.Selection(start, start);
+
+    let viewColumn = ViewColumn.Beside;
+    if (this.panel.viewColumn === undefined) viewColumn = ViewColumn.Beside;
+    else {
+      switch (this.panel.viewColumn) {
+        case ViewColumn.One:
+          viewColumn = ViewColumn.Beside;
+          break;
+        default:
+          viewColumn = this.panel.viewColumn - 1;
+          break;
+      }
+    }
+
     await vscode.window.showTextDocument(uri, {
-      viewColumn: vscode.ViewColumn.Beside,
-      selection
+      viewColumn,
+      selection,
     });
     return;
   }
