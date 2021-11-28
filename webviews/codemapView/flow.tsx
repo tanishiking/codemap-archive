@@ -163,6 +163,8 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           onDragOver={onDragOver}
           onNodeDoubleClick={onNodeDoubleClick}
           onConnect={onConnect}
+          zoomOnScroll={false}
+          panOnScroll={true}
         ></ReactFlow>
       </div>
       <SidebarComponent nodes={tempNodes} />
