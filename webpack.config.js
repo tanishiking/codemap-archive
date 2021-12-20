@@ -3,6 +3,8 @@
 'use strict';
 
 const path = require('path');
+const webpack = require('webpack');
+
 
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -77,9 +79,20 @@ const webviewConfig = {
             loader: 'ts-loader'
           }
         ]
-      }
+      },
+      {
+        test: /\.css$/i,
+        use: ["style-loader", "css-loader"],
+      },
     ]
   },
+  // https://github.com/fkhadra/react-contexify/blob/42e7d2061306e9d9744c1dddc5cae748a9772fce/src/core/eventManager.ts#L27-L37
+  // https://github.com/fkhadra/react-contexify/issues/174
+  plugins: [
+    new webpack.ProvidePlugin({
+      process: 'process/browser',
+    }),
+  ],
   devtool: 'nosources-source-map',
   infrastructureLogging: {
     level: "log", // enables logging required for problem matchers

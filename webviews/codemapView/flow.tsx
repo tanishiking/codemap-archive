@@ -12,6 +12,14 @@ import ReactFlow, {
   Edge,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
+import {
+  useContextMenu,
+  Menu,
+  Item,
+  Separator,
+  ItemParams,
+} from "react-contexify";
+import "react-contexify/dist/ReactContexify.css";
 
 import { getMessageValidator } from "../../shared/messages/toWebview/message";
 import { getAddNodeValidator } from "../../shared/messages/toWebview/AddNode";
@@ -23,6 +31,15 @@ import { SidebarComponent } from "./sidebar";
 import { TemporalNode } from "./temporalNode";
 import { StateType } from "./persistence";
 
+const CONTEXT_MENU_ID = "react_flow_menu_id";
+
+/**
+ * id: node id
+ */
+interface ItemProps {
+  id: string;
+}
+
 export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const [elements, setElements] = useState<Elements<NodeData | undefined>>([]);
   const [reactFlowInstance, setReactFlowInstance] =
@@ -30,6 +47,22 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   // the temporal nodes resting on the sidebar
   const [tempNodes, setTempNodes] = useState<TemporalNode[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
+  const { show } = useContextMenu({
+    id: CONTEXT_MENU_ID,
+  });
+
+  function displayMenu(e: React.MouseEvent, node: Node): void {
+    // console.log(`displayMenu ${node.id}`)
+    show(e, { props: { id: node.id } });
+  }
+
+  function deleteNode(
+    nodeId?: string,
+  ): void {
+    // TODO: show confirmation
+    if (nodeId === undefined) return
+    setElements(elements.filter(element => nodeId !== element.id))
+  }
 
   useEffect(() => {
     const previousState = props.vscode.getState();
@@ -162,12 +195,20 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           onDrop={onDrop}
           onDragOver={onDragOver}
           onNodeDoubleClick={onNodeDoubleClick}
+          onNodeContextMenu={displayMenu}
           onConnect={onConnect}
           zoomOnScroll={false}
           panOnScroll={true}
         ></ReactFlow>
       </div>
       <SidebarComponent nodes={tempNodes} />
+      <Menu id={CONTEXT_MENU_ID}>
+        <Item onClick={() => {}}>
+          Item 1
+        </Item>
+        <Separator />
+        <Item onClick={(params: ItemParams<ItemProps, any>) => deleteNode(params.props?.id) }>🗑️ Delete</Item>
+      </Menu>
     </ReactFlowProvider>
   );
 };
