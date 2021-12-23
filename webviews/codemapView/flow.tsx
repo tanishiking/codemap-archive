@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, DragEvent, MouseEvent } from "react";
 import { WebviewApi } from "vscode-webview";
 import ReactFlow, {
   Elements,
-  OnLoadParams,
+  ReactFlowInstance,
   ReactFlowProvider,
   Node,
   FlowElement,
@@ -41,9 +41,11 @@ interface ItemProps {
 }
 
 export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
+  const [nodes, setNodes] = useState<Node<NodeData>[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [elements, setElements] = useState<Elements<NodeData | undefined>>([]);
   const [reactFlowInstance, setReactFlowInstance] =
-    useState<OnLoadParams | null>(null);
+    useState<ReactFlowInstance | null>(null);
   // the temporal nodes resting on the sidebar
   const [tempNodes, setTempNodes] = useState<TemporalNode[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
@@ -68,7 +70,8 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     const previousState = props.vscode.getState();
     if (previousState) {
       const flow = previousState.flow;
-      setElements(flow.elements || []);
+      setNodes(flow.nodes)
+      setEdges(flow.edges)
       // TODO: restore the zooming state
       // useZoomPanHelper()
       // const [x = 0, y = 0] = flow.position;
@@ -180,7 +183,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   };
 
   const onConnect = (params: Connection | Edge) =>
-    setElements((els) => addEdge(params, els));
+    setEdges((els) => addEdge(params, els));
 
   return (
     <ReactFlowProvider>
@@ -190,8 +193,9 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         style={{ height: 400 }}
       >
         <ReactFlow
-          elements={elements}
-          onLoad={setReactFlowInstance}
+          nodes={nodes}
+          edges={edges}
+          onPaneReady={setReactFlowInstance}
           onDrop={onDrop}
           onDragOver={onDragOver}
           onNodeDoubleClick={onNodeDoubleClick}
