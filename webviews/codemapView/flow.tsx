@@ -3,13 +3,15 @@ import { useState, useRef, useEffect, DragEvent, MouseEvent } from "react";
 import { WebviewApi } from "vscode-webview";
 import ReactFlow, {
   Elements,
-  OnLoadParams,
+  ReactFlowInstance,
   ReactFlowProvider,
   Node,
   FlowElement,
   addEdge,
   Connection,
   Edge,
+  useNodesState,
+  useEdgesState,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -41,15 +43,17 @@ interface ItemProps {
 }
 
 export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
-  const [elements, setElements] = useState<Elements<NodeData | undefined>>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [reactFlowInstance, setReactFlowInstance] =
-    useState<OnLoadParams | null>(null);
+    useState<ReactFlowInstance | null>(null);
   // the temporal nodes resting on the sidebar
   const [tempNodes, setTempNodes] = useState<TemporalNode[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
   const { show } = useContextMenu({
     id: CONTEXT_MENU_ID,
   });
+  console.log(edges)
 
   function displayMenu(e: React.MouseEvent, node: Node): void {
     // console.log(`displayMenu ${node.id}`)
@@ -61,14 +65,16 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   ): void {
     // TODO: show confirmation
     if (nodeId === undefined) return
-    setElements(elements.filter(element => nodeId !== element.id))
+    setNodes(nodes.filter(node => nodeId !== node.id))
+    setEdges(edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId))
   }
 
   useEffect(() => {
     const previousState = props.vscode.getState();
     if (previousState) {
       const flow = previousState.flow;
-      setElements(flow.elements || []);
+      setNodes(flow.nodes)
+      setEdges(flow.edges)
       // TODO: restore the zooming state
       // useZoomPanHelper()
       // const [x = 0, y = 0] = flow.position;
@@ -116,7 +122,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       };
       props.vscode.setState(state);
     }
-  }, [elements, tempNodes]);
+  }, [nodes, tempNodes]);
 
   const onDragOver = (event: DragEvent) => {
     event.preventDefault();
@@ -154,7 +160,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         data: { label: data.label, pos: data.pos },
       };
 
-      setElements((es) => es.concat(newNode));
+      setNodes((es) => es.concat(newNode));
       setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
     }
   };
@@ -180,7 +186,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   };
 
   const onConnect = (params: Connection | Edge) =>
-    setElements((els) => addEdge(params, els));
+    setEdges((els) => addEdge(params, els));
 
   return (
     <ReactFlowProvider>
@@ -190,10 +196,13 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         style={{ height: 400 }}
       >
         <ReactFlow
-          elements={elements}
-          onLoad={setReactFlowInstance}
+          nodes={nodes}
+          edges={edges}
+          onPaneReady={setReactFlowInstance}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeContextMenu={displayMenu}
           onConnect={onConnect}
