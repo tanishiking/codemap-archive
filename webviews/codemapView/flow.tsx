@@ -53,7 +53,6 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const { show } = useContextMenu({
     id: CONTEXT_MENU_ID,
   });
-  console.log(edges)
 
   function displayMenu(e: React.MouseEvent, node: Node): void {
     // console.log(`displayMenu ${node.id}`)
@@ -101,7 +100,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             const temp: TemporalNode = {
               id: uuidv4(),
               label: data.label,
-              pos: data.pos,
+              range: data.range,
             };
             setTempNodes((nodes) => nodes.concat(temp));
             break;
@@ -157,7 +156,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       const newNode: FlowElement<NodeData> = {
         id: data.id,
         position: position,
-        data: { label: data.label, pos: data.pos },
+        data: { label: data.label, range: data.range },
       };
 
       setNodes((es) => es.concat(newNode));
@@ -174,7 +173,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     if (data) {
       const payload: OpenInEditor = {
         label: data.label,
-        pos: data.pos,
+        range: data.range,
       };
       const message: Message = {
         command: "open_in_editor",

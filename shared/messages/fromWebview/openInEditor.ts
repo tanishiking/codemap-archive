@@ -1,19 +1,19 @@
 import Ajv, { JSONSchemaType, ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import { Position, positionSchema } from "../position";
+import { Range, rangeSchema } from "../position";
 
 export type OpenInEditor = {
   label: string
-  pos: Position
+  range: Range
 }
 
 const schema: JSONSchemaType<OpenInEditor> = {
   type: "object",
   properties: {
     label: { type: "string" },
-    pos: positionSchema,
+    range: rangeSchema,
   },
-  required: ["label", "pos"],
+  required: ["label", "range"],
   additionalProperties: false,
 };
 

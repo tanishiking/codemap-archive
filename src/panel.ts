@@ -4,7 +4,7 @@ import { AddNode } from "../shared/messages/toWebview/addNode";
 import { Message } from "../shared/messages/toWebview/message";
 import { getMessageValidator } from "../shared/messages/fromWebview/message";
 import { getOpenInEditorValidator } from "../shared/messages/fromWebview/openInEditor";
-import { Position } from "../shared/messages/position";
+import { Range } from "../shared/messages/position";
 
 export class CodeMapPanel {
   public static readonly title = "Code Map";
@@ -64,7 +64,7 @@ export class CodeMapPanel {
             console.error(validateOpenIneditor.errors);
             return;
           }
-          await this.openInEditor(data.pos);
+          await this.openInEditor(data.range);
           break;
       }
     });
@@ -79,7 +79,6 @@ export class CodeMapPanel {
   }
 
   private updateWebview(): void {
-    console.log("updateWebview");
     this.panel.title = CodeMapPanel.title;
     this.panel.webview.html = CodeMapPanel.getHtmlForWebview(
       this.panel.webview,
@@ -143,9 +142,9 @@ export class CodeMapPanel {
 			</html>`;
   }
 
-  private async openInEditor(pos: Position): Promise<void> {
-    const uri = vscode.Uri.parse(pos.uri, true);
-    const start = new vscode.Position(pos.line, pos.character);
+  private async openInEditor(range: Range): Promise<void> {
+    const uri = vscode.Uri.parse(range.uri, true);
+    const start = new vscode.Position(range.start.line, range.start.character);
     const selection = new vscode.Selection(start, start);
 
     let viewColumn = ViewColumn.Beside;

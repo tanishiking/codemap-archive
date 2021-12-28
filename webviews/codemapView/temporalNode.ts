@@ -1,14 +1,14 @@
 import Ajv, { JSONSchemaType, ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import { Position, positionSchema } from "../../shared/messages/position"
+import { Range, positionSchema, rangeSchema } from "../../shared/messages/position"
 
 export interface TemporalNode {
   id: string;
   label: string;
-  pos: Position;
+  range: Range;
 }
 
-export type NodeData = Pick<TemporalNode, "label" | "pos">
+export type NodeData = Pick<TemporalNode, "label" | "range">
 
 
 export function getValidator(): ValidateFunction<TemporalNode> {
@@ -22,8 +22,8 @@ const temporalNodeSchema: JSONSchemaType<TemporalNode> = {
   properties: {
     id: { type: "string" },
     label: { type: "string" },
-    pos: positionSchema,
+    range: rangeSchema,
   },
-  required: ["id", "label", "pos"],
+  required: ["id", "label", "range"],
   additionalProperties: false,
 };

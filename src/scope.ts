@@ -24,7 +24,7 @@ export class ScopeSymbolsFinder {
   public async getScopeSymbols(): Promise<vscode.DocumentSymbol[] | null> {
     let symbols = await this.getSymbols();
     if (!symbols) return null;
-    console.log(symbols);
+    console.log(`getScopeSymbols ${symbols.length}`);
     return this.filterScopeSymbols(this.recurChildren(symbols));
   }
 
@@ -39,7 +39,6 @@ export class ScopeSymbolsFinder {
   private recurChildren(
     syms: vscode.DocumentSymbol[]
   ): vscode.DocumentSymbol[] {
-    console.log(syms);
     if (syms.length > 0)
       return syms.concat(
         this.recurChildren(
