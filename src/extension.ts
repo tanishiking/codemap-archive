@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import { AddNode } from "../shared/messages/toWebview/AddNode";
+import { ScopeSymbolsCodeLensProvider } from "./codelens";
 import { CodeMapPanel } from "./panel";
 
 // this method is called when your extension is activated
@@ -47,7 +48,15 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(disposable1, disposable2);
+  const docSelector: vscode.DocumentSelector = {
+    scheme: "file"
+  };
+  let codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
+    docSelector,
+    new ScopeSymbolsCodeLensProvider()
+  );
+
+  context.subscriptions.push(disposable1, disposable2, codeLensProviderDisposable);
 }
 
 // this method is called when your extension is deactivated
