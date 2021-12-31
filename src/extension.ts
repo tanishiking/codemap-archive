@@ -2,9 +2,13 @@
 // Import the module and reference it with the alias vscode in your code below
 import Ajv from "ajv";
 import * as vscode from "vscode";
-import { AddNode, getAddNodeValidator } from "../shared/messages/toWebview/AddNode";
+import {
+  AddNode,
+  getAddNodeValidator,
+} from "../shared/messages/toWebview/AddNode";
 import { ScopeSymbolsCodeLensProvider } from "./codelens";
 import { AddToCodeMap } from "./commands";
+import { DefinitionProviderTracker } from "./navigationProvider";
 import { CodeMapPanel } from "./panel";
 
 // this method is called when your extension is activated
@@ -53,32 +57,56 @@ export function activate(context: vscode.ExtensionContext) {
             end: {
               line: end.line,
               character: end.character,
-            }
+            },
           },
         };
         return panel.addNode(payload);
       } else {
-        const arg = args[0]
+        const arg = args[0];
         if (!validateAddNode(arg)) {
-          console.error(`Invalid argument: ${validateAddNode.errors}`)
+          console.error(`Invalid argument: ${validateAddNode.errors}`);
           return;
         }
         const panel = CodeMapPanel.createOrShow(context.extensionUri);
         if (!panel) return;
-        return panel.addNode(arg)
+        return panel.addNode(arg);
       }
     }
   );
 
   const docSelector: vscode.DocumentSelector = {
-    scheme: "file"
+    scheme: "file",
   };
-  let codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
+  const codeLensProviderDisposable = vscode.languages.registerCodeLensProvider(
     docSelector,
     new ScopeSymbolsCodeLensProvider()
   );
 
-  context.subscriptions.push(disposable1, disposable2, codeLensProviderDisposable);
+  const definitionProvider = new DefinitionProviderTracker()
+  const definitionProviderDisposable = vscode.languages.registerDefinitionProvider(
+    docSelector,
+    definitionProvider
+  );
+
+  vscode.window.onDidChangeTextEditorSelection(async e => {
+    if (e.selections.length < 1) {
+        return;
+    }
+    const selection = e.selections[0];
+    console.log(`onDidChange: ${JSON.stringify(selection)}`)
+    const uri = e.textEditor.document.uri.toString()
+    const start = selection.start
+    console.log(`onDidChange: ${JSON.stringify(definitionProvider.findOrigin(uri, start))}`)
+
+});
+
+
+  context.subscriptions.push(
+    disposable1,
+    disposable2,
+    codeLensProviderDisposable,
+    definitionProviderDisposable
+  );
 }
 
 // this method is called when your extension is deactivated

@@ -24,8 +24,29 @@ export class ScopeSymbolsFinder {
   public async getScopeSymbols(): Promise<vscode.DocumentSymbol[] | null> {
     let symbols = await this.getSymbols();
     if (!symbols) return null;
-    console.log(`getScopeSymbols ${symbols.length}`);
-    return this.filterScopeSymbols(this.recurChildren(symbols));
+    // console.log(`getScopeSymbols ${symbols.length}`);
+    return this.filterScopeSymbols(
+      this.recurChildren(symbols, this.filterScopeSymbols)
+    );
+  }
+
+  public async locateSymbol(
+    pos: vscode.Position
+  ): Promise<vscode.DocumentSymbol | null> {
+    const syms = await this.getSymbols();
+    if (!syms) return null;
+
+    const containsPos = (syms: vscode.DocumentSymbol[]) =>
+      syms.filter((sym) => sym.range.contains(pos));
+    const locatedSyms = containsPos(
+      this.recurChildren(syms, containsPos)
+    )
+    locatedSyms.forEach(sym => console.log(sym))
+    const exactSyms = locatedSyms.filter((sym) => sym.range.start.line === pos.line);
+    console.log(`exactSyms: ${exactSyms}`)
+
+    if (exactSyms.length === 0) return null
+    return exactSyms.sort(this.compareByRange)[0]
   }
 
   private filterScopeSymbols(
@@ -36,13 +57,23 @@ export class ScopeSymbolsFinder {
     );
   }
 
+  /**
+   * @returns 1 (a is bigger) if a contains (or equals to) b
+   */
+  private compareByRange = (a: vscode.DocumentSymbol, b: vscode.DocumentSymbol) => {
+    return a.range.contains(b.range) ? 1 : -1
+  }
+    
+
   private recurChildren(
-    syms: vscode.DocumentSymbol[]
+    syms: vscode.DocumentSymbol[],
+    filter: (syms: vscode.DocumentSymbol[]) => vscode.DocumentSymbol[]
   ): vscode.DocumentSymbol[] {
     if (syms.length > 0)
       return syms.concat(
         this.recurChildren(
-          syms.flatMap((sym) => this.filterScopeSymbols(sym.children))
+          syms.flatMap((sym) => filter(sym.children)),
+          filter
         )
       );
     else return [];
