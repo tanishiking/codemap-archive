@@ -12,7 +12,7 @@ const ScopeSymbolKind = [
 ];
 
 export class ScopeSymbolsFinder {
-  constructor(private doc: vscode.TextDocument) {}
+  constructor(private uri: vscode.Uri) {}
 
   // public async pathTo(pos: vscode.Position): Promise<vscode.DocumentSymbol[] | null> {
   //   const toplevelSyms = await this.getScopeSymbols()
@@ -30,23 +30,23 @@ export class ScopeSymbolsFinder {
     );
   }
 
-  public async locateSymbol(
+  /**
+   * Get scope symbols that contain the given position.
+   * 
+   * @param pos - position that should be contained
+   * @returns symbols sorted by range narrower first, broader latter
+   */
+  public async locateSymbols(
     pos: vscode.Position
-  ): Promise<vscode.DocumentSymbol | null> {
-    const syms = await this.getSymbols();
-    if (!syms) return null;
+  ): Promise<vscode.DocumentSymbol[]> {
+    const syms = await this.getSymbols() || [];
 
     const containsPos = (syms: vscode.DocumentSymbol[]) =>
       syms.filter((sym) => sym.range.contains(pos));
     const locatedSyms = containsPos(
       this.recurChildren(syms, containsPos)
     )
-    locatedSyms.forEach(sym => console.log(sym))
-    const exactSyms = locatedSyms.filter((sym) => sym.range.start.line === pos.line);
-    console.log(`exactSyms: ${exactSyms}`)
-
-    if (exactSyms.length === 0) return null
-    return exactSyms.sort(this.compareByRange)[0]
+    return locatedSyms.sort(this.compareByRange)
   }
 
   private filterScopeSymbols(
@@ -83,7 +83,7 @@ export class ScopeSymbolsFinder {
     // assert.equal(vscode.window.activeTextEditor.document, this.doc);
     return vscode.commands.executeCommand(
       "vscode.executeDocumentSymbolProvider",
-      this.doc.uri
+      this.uri
     );
   }
 }

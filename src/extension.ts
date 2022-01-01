@@ -2,14 +2,17 @@
 // Import the module and reference it with the alias vscode in your code below
 import Ajv from "ajv";
 import * as vscode from "vscode";
+import { fromVSCodeRange } from "../shared/messages/position";
 import {
   AddNode,
   getAddNodeValidator,
 } from "../shared/messages/toWebview/AddNode";
+import { Navigate } from "../shared/messages/toWebview/navigate";
 import { ScopeSymbolsCodeLensProvider } from "./codelens";
 import { AddToCodeMap } from "./commands";
 import { DefinitionProviderTracker } from "./navigationProvider";
 import { CodeMapPanel } from "./panel";
+import { ScopeSymbolsFinder } from "./scope";
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -82,24 +85,67 @@ export function activate(context: vscode.ExtensionContext) {
     new ScopeSymbolsCodeLensProvider()
   );
 
-  const definitionProvider = new DefinitionProviderTracker()
-  const definitionProviderDisposable = vscode.languages.registerDefinitionProvider(
-    docSelector,
-    definitionProvider
-  );
+  const definitionProvider = new DefinitionProviderTracker();
+  const definitionProviderDisposable =
+    vscode.languages.registerDefinitionProvider(
+      docSelector,
+      definitionProvider
+    );
 
-  vscode.window.onDidChangeTextEditorSelection(async e => {
-    if (e.selections.length < 1) {
-        return;
-    }
+  function withinOneLine(
+    a: [vscode.Position, string],
+    b: [vscode.Position, string]
+  ): boolean {
+    return (
+      a[1] === b[1] && Math.abs(a[0].line - b[0].line) <= 1 // || Math.abs(a.character - b.character) <= 1
+    );
+  }
+  let prevPosition: [vscode.Position, string] = [
+    new vscode.Position(Number.MIN_VALUE, Number.MIN_VALUE),
+    "",
+  ];
+  vscode.window.onDidChangeTextEditorSelection(async (e) => {
+    if (e.kind !== vscode.TextEditorSelectionChangeKind.Command) return;
+    if (e.selections.length < 1) return;
+
+    // const finder = new ScopeSymbolsFinder(document)
+    // const scopeSymbols = await finder.getScopeSymbols()
     const selection = e.selections[0];
-    console.log(`onDidChange: ${JSON.stringify(selection)}`)
-    const uri = e.textEditor.document.uri.toString()
-    const start = selection.start
-    console.log(`onDidChange: ${JSON.stringify(definitionProvider.findOrigin(uri, start))}`)
+    if (!selection.isEmpty) return; // if selecting something, skip
 
-});
+    const uri = e.textEditor.document.uri;
+    const position = selection.start;
+    if (withinOneLine([position, uri.toString()], prevPosition)) return;
 
+    const finder = new ScopeSymbolsFinder(uri)
+    const scopeSymbols = await finder.locateSymbols(position)
+    if (scopeSymbols.length === 0) return;
+    const toSym = scopeSymbols[0]
+    const to: AddNode = {
+      label: toSym.name,
+      range: fromVSCodeRange(toSym.range, uri)
+    }
+
+    const origin = definitionProvider.findOrigin(uri, position)
+    if (!origin) return
+
+    const from: AddNode = {
+      label: toSym.name,
+      range: {
+        uri: origin.uri,
+        start: origin.position,
+        end: origin.position,
+      }
+    }
+
+    const payload: Navigate = {
+      from,
+      to
+    }
+    const panel = CodeMapPanel.createOrShow(context.extensionUri);
+    if (!panel) return;
+    return panel.traceNavigation(payload);
+  });
 
   context.subscriptions.push(
     disposable1,

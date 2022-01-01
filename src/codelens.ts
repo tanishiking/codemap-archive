@@ -11,7 +11,7 @@ import { ScopeSymbolsFinder } from "./scope";
 
 export class ScopeSymbolsCodeLensProvider implements CodeLensProvider {
   async provideCodeLenses(document: TextDocument): Promise<CodeLens[]> {
-    const finder = new ScopeSymbolsFinder(document)
+    const finder = new ScopeSymbolsFinder(document.uri)
     const scopeSymbols = await finder.getScopeSymbols()
     const lenses = (scopeSymbols || []).map(sym => {
       const arg: AddNode = {

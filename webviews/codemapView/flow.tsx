@@ -29,6 +29,11 @@ import { Message } from "../../shared/messages/fromWebview/message";
 
 import { NodeData } from "./temporalNode";
 import { StateType } from "./persistence";
+import {
+  getNavigateValidator,
+  Navigate,
+} from "../../shared/messages/toWebview/navigate";
+import { Range, contains } from "../../shared/messages/position";
 
 const CONTEXT_MENU_ID = "react_flow_menu_id";
 
@@ -38,6 +43,21 @@ const CONTEXT_MENU_ID = "react_flow_menu_id";
 interface ItemProps {
   id: string;
 }
+
+const findContainingNode = (
+  nodes: Node<NodeData>[],
+  child: Range
+): Node<NodeData> | null => {
+  console.log(nodes);
+  console.log(child);
+  const outers = nodes.filter((node) => contains(node.data.range, child));
+  console.log(outers);
+  if (outers.length === 0) return null;
+  else
+    return outers.sort((a, b) =>
+      contains(a.data.range, b.data.range) ? 1 : -1
+    )[0];
+};
 
 export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -54,16 +74,18 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const displayMenu = useCallback((e: React.MouseEvent, node: Node) => {
     // console.log(`displayMenu ${node.id}`)
     show(e, { props: { id: node.id } });
-  }, [])
+  }, []);
 
   const deleteNode = useCallback((nodeId?: string) => {
     // TODO: show confirmation
     if (nodeId === undefined) return;
-    setNodes(nodes.filter((node) => nodeId !== node.id));
-    setEdges(
+    setNodes((nodes) =>
+      nodes.filter((node) => nodeId !== node.id && nodeId !== node.parentNode)
+    );
+    setEdges((edges) =>
       edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
     );
-  }, [])
+  }, []);
 
   useEffect(() => {
     const previousState = props.vscode.getState();
@@ -79,6 +101,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     }
     const validateMessage = getMessageValidator();
     const validateAddNode = getAddNodeValidator();
+    const validateNavigate = getNavigateValidator();
 
     window.addEventListener("message", (event: MessageEvent) => {
       const message = event.data; // The json data that the extension sent
@@ -86,43 +109,82 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         console.error(validateMessage.errors);
         return;
       } else {
-        switch (message.command) {
-          case "add_node":
-            const data = message.data;
-            if (!validateAddNode(data)) {
-              console.error(validateAddNode.errors);
-              return;
-            }
-            const reactFlowBounds =
-              reactFlowWrapper.current?.getBoundingClientRect();
-            const reactFlowInstance = reactFlowInstanceRef.current;
-            if (reactFlowInstance && reactFlowBounds) {
-              // TODO: more smart position decision algorithm
-              const position = !prevPos.current
-                ? reactFlowInstance.project({
-                    x: (reactFlowBounds.right - reactFlowBounds.left) / 2,
-                    y: (reactFlowBounds.bottom - reactFlowBounds.top) / 2,
-                  })
-                : reactFlowInstance.project({
-                    x: prevPos.current.x + Math.random() * 200,
-                    y: prevPos.current.y + Math.random() * 200,
-                  });
+        if (message.command === "add_node") {
+          const data = message.data;
+          if (!validateAddNode(data)) {
+            console.error(validateAddNode.errors);
+            return;
+          }
+          const reactFlowBounds =
+            reactFlowWrapper.current?.getBoundingClientRect();
+          const reactFlowInstance = reactFlowInstanceRef.current;
+          if (reactFlowInstance && reactFlowBounds) {
+            // TODO: more smart position decision algorithm
+            const position = !prevPos.current
+              ? reactFlowInstance.project({
+                  x: (reactFlowBounds.right - reactFlowBounds.left) / 2,
+                  y: (reactFlowBounds.bottom - reactFlowBounds.top) / 2,
+                })
+              : reactFlowInstance.project({
+                  x: prevPos.current.x + Math.random() * 200,
+                  y: prevPos.current.y + Math.random() * 200,
+                });
 
-              const newNode: Node<NodeData> = {
-                id: uuidv4(),
-                position: position,
-                data: { label: data.label, range: data.range },
-              };
-              prevPos.current = position
-              setNodes((es) => es.concat(newNode));
-              // setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
-            } else {
-              // TODO: show error message
-            }
-            break;
+            const newNode: Node<NodeData> = {
+              id: uuidv4(),
+              position: position,
+              data: { label: data.label, range: data.range },
+            };
+            prevPos.current = position;
+            setNodes((es) => es.concat(newNode));
+            // setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
+          } else {
+            // TODO: show error message
+          }
+        } else if (message.command === "navigate") {
+          const data = message.data;
+          if (!validateNavigate(data)) {
+            console.error(validateNavigate.errors);
+            return;
+          }
+          addNavigate(data);
         }
       }
     });
+  }, []);
+
+  const addNavigate = useCallback((data: Navigate) => {
+    const fromId = uuidv4();
+    const toId = uuidv4();
+    setNodes((nodes: Node[]) => {
+      const fromParentNode = findContainingNode(nodes, data.from.range);
+      if (!fromParentNode) return nodes;
+
+      const reactFlowInstance = reactFlowInstanceRef.current;
+      if (!reactFlowInstance) return nodes;
+      const from: Node<NodeData> = {
+        id: fromId,
+        position: fromParentNode.position, // TODO: なんとかしたい
+        data: { label: data.from.label, range: data.from.range },
+        parentNode: fromParentNode.id,
+      };
+      const to: Node<NodeData> = {
+        id: toId,
+        position: reactFlowInstance.project({
+          x: fromParentNode.position.x + Math.random() * 200,
+          y: fromParentNode.position.y + Math.random() * 200,
+        }),
+        data: { label: data.to.label, range: data.to.range },
+      };
+      return nodes.concat([from, to]);
+    });
+
+    const newEdge: Edge = {
+      id: uuidv4(),
+      source: fromId,
+      target: toId,
+    };
+    setEdges((edges) => edges.concat([newEdge]));
   }, []);
 
   // Persist the state of webview

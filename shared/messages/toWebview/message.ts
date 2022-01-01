@@ -1,6 +1,6 @@
 import Ajv, { JSONSchemaType, ValidateFunction } from "ajv";
 
-export type Command = "add_node";
+export type Command = "add_node" | "navigate";
 export type Message = {
   command: Command;
   data: object;
@@ -9,7 +9,7 @@ export type Message = {
 const schema: JSONSchemaType<Message> = {
   type: "object",
   properties: {
-    command: { type: "string", enum: ["add_node"] },
+    command: { type: "string", enum: ["add_node", "navigate"] },
     data: { type: "object" },
   },
   required: ["command", "data"],

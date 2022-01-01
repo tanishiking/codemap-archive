@@ -5,6 +5,7 @@ import { Message } from "../shared/messages/toWebview/message";
 import { getMessageValidator } from "../shared/messages/fromWebview/message";
 import { getOpenInEditorValidator } from "../shared/messages/fromWebview/openInEditor";
 import { Range } from "../shared/messages/position";
+import { Navigate } from "../shared/messages/toWebview/navigate";
 
 export class CodeMapPanel {
   public static readonly title = "Code Map";
@@ -40,6 +41,14 @@ export class CodeMapPanel {
       command: "add_node",
       data: payload,
     };
+    return this.panel.webview.postMessage(message);
+  }
+
+  public async traceNavigation(payload: Navigate): Promise<boolean> {
+    const message: Message = {
+      command: "navigate",
+      data: payload
+    }
     return this.panel.webview.postMessage(message);
   }
 

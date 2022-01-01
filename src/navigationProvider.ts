@@ -26,9 +26,9 @@ export class DefinitionProviderTracker implements DefinitionProvider {
   private lock = new Set<string>();
   private cache = new NodeCache({ stdTTL: 60 });
 
-  public findOrigin(uri: string, pos: Position): Origin | undefined {
+  public findOrigin(uri: vscode.Uri, pos: Position): Origin | undefined {
     const key: CacheKey = {
-      uri,
+      uri: uri.toString(),
       start: pos,
     };
     const hashedKey = hash(key);
@@ -52,12 +52,12 @@ export class DefinitionProviderTracker implements DefinitionProvider {
     }
     this.lock.add(key);
 
-    const symFinder = new ScopeSymbolsFinder(document);
-    const sym = await symFinder.locateSymbol(position);
-    console.log(`definitionProvider ${sym?.name || ""}`);
-    if (sym) {
-      console.log(sym.name);
-    }
+    // const symFinder = new ScopeSymbolsFinder(document.uri.toString());
+    // const sym = await symFinder.locateSymbol(position);
+    // console.log(`definitionProvider ${sym?.name || ""}`);
+    // if (sym) {
+    //   console.log(sym.name);
+    // }
 
     const locationLinks = (await this.executeCommand(document.uri, position)) || [];
     const items: ValueSetItem<Origin>[] = locationLinks.map((loc) => {

@@ -7,7 +7,7 @@ export type AddNode = {
   range: Range;
 };
 
-const schema: JSONSchemaType<AddNode> = {
+export const addNodeSchema: JSONSchemaType<AddNode> = {
   type: "object",
   properties: {
     label: { type: "string" },
@@ -19,5 +19,5 @@ const schema: JSONSchemaType<AddNode> = {
 
 export function getAddNodeValidator(): ValidateFunction<AddNode> {
   const ajv = new Ajv();
-  return ajv.compile(schema);
+  return ajv.compile(addNodeSchema);
 }
