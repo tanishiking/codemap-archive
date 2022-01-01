@@ -1,17 +1,16 @@
 import * as React from "react";
-import { useState, useRef, useEffect, DragEvent, MouseEvent } from "react";
+import { useRef, useEffect, DragEvent, MouseEvent, useCallback } from "react";
 import { WebviewApi } from "vscode-webview";
 import ReactFlow, {
-  Elements,
   ReactFlowInstance,
   ReactFlowProvider,
   Node,
-  FlowElement,
   addEdge,
   Connection,
   Edge,
   useNodesState,
   useEdgesState,
+  XYPosition,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -28,9 +27,7 @@ import { getAddNodeValidator } from "../../shared/messages/toWebview/AddNode";
 import { OpenInEditor } from "../../shared/messages/fromWebview/openInEditor";
 import { Message } from "../../shared/messages/fromWebview/message";
 
-import { getValidator as getTempNodeValidator, NodeData } from "./temporalNode";
-import { SidebarComponent } from "./sidebar";
-import { TemporalNode } from "./temporalNode";
+import { NodeData } from "./temporalNode";
 import { StateType } from "./persistence";
 
 const CONTEXT_MENU_ID = "react_flow_menu_id";
@@ -45,40 +42,40 @@ interface ItemProps {
 export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [reactFlowInstance, setReactFlowInstance] =
-    useState<ReactFlowInstance | null>(null);
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
   // the temporal nodes resting on the sidebar
-  const [tempNodes, setTempNodes] = useState<TemporalNode[]>([]);
+  // const [tempNodes, setTempNodes] = useState<TemporalNode[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
+  const prevPos = useRef<XYPosition | null>(null);
   const { show } = useContextMenu({
     id: CONTEXT_MENU_ID,
   });
 
-  function displayMenu(e: React.MouseEvent, node: Node): void {
+  const displayMenu = useCallback((e: React.MouseEvent, node: Node) => {
     // console.log(`displayMenu ${node.id}`)
     show(e, { props: { id: node.id } });
-  }
+  }, [])
 
-  function deleteNode(
-    nodeId?: string,
-  ): void {
+  const deleteNode = useCallback((nodeId?: string) => {
     // TODO: show confirmation
-    if (nodeId === undefined) return
-    setNodes(nodes.filter(node => nodeId !== node.id))
-    setEdges(edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId))
-  }
+    if (nodeId === undefined) return;
+    setNodes(nodes.filter((node) => nodeId !== node.id));
+    setEdges(
+      edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+    );
+  }, [])
 
   useEffect(() => {
     const previousState = props.vscode.getState();
     if (previousState) {
       const flow = previousState.flow;
-      setNodes(flow.nodes)
-      setEdges(flow.edges)
+      setNodes(flow.nodes);
+      setEdges(flow.edges);
       // TODO: restore the zooming state
       // useZoomPanHelper()
       // const [x = 0, y = 0] = flow.position;
       // transform({ x, y, zoom: flow.zoom || 0 });
-      setTempNodes(previousState.tempNodes);
+      // setTempNodes(previousState.tempNodes);
     }
     const validateMessage = getMessageValidator();
     const validateAddNode = getAddNodeValidator();
@@ -92,17 +89,36 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         switch (message.command) {
           case "add_node":
             const data = message.data;
-            console.log(message.data);
             if (!validateAddNode(data)) {
               console.error(validateAddNode.errors);
               return;
             }
-            const temp: TemporalNode = {
-              id: uuidv4(),
-              label: data.label,
-              range: data.range,
-            };
-            setTempNodes((nodes) => nodes.concat(temp));
+            const reactFlowBounds =
+              reactFlowWrapper.current?.getBoundingClientRect();
+            const reactFlowInstance = reactFlowInstanceRef.current;
+            if (reactFlowInstance && reactFlowBounds) {
+              // TODO: more smart position decision algorithm
+              const position = !prevPos.current
+                ? reactFlowInstance.project({
+                    x: (reactFlowBounds.right - reactFlowBounds.left) / 2,
+                    y: (reactFlowBounds.bottom - reactFlowBounds.top) / 2,
+                  })
+                : reactFlowInstance.project({
+                    x: prevPos.current.x + Math.random() * 200,
+                    y: prevPos.current.y + Math.random() * 200,
+                  });
+
+              const newNode: Node<NodeData> = {
+                id: uuidv4(),
+                position: position,
+                data: { label: data.label, range: data.range },
+              };
+              prevPos.current = position
+              setNodes((es) => es.concat(newNode));
+              // setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
+            } else {
+              // TODO: show error message
+            }
             break;
         }
       }
@@ -114,54 +130,18 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   // https://code.visualstudio.com/api/extension-guides/webview#lifecycle
   // https://code.visualstudio.com/api/extension-guides/webview#persistence
   useEffect(() => {
-    if (reactFlowInstance) {
+    if (reactFlowInstanceRef.current) {
       const state: StateType = {
-        flow: reactFlowInstance.toObject(),
-        tempNodes,
+        flow: reactFlowInstanceRef.current.toObject(),
+        // tempNodes,
       };
       props.vscode.setState(state);
     }
-  }, [nodes, tempNodes]);
+  }, [nodes]);
 
   const onDragOver = (event: DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-  };
-
-  const onDrop = (event: DragEvent) => {
-    event.preventDefault();
-
-    const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
-    const rawData = event.dataTransfer.getData("data");
-    let data: TemporalNode | null = null;
-    try {
-      const parsed = JSON.parse(rawData);
-      const tempNodeValidate = getTempNodeValidator();
-      if (!tempNodeValidate(parsed)) {
-        console.error(tempNodeValidate.errors);
-        data = null;
-      } else {
-        data = parsed;
-      }
-    } catch (e) {
-      if (e instanceof SyntaxError) console.error(`${e.message}\n${rawData}`);
-      data = null;
-    }
-
-    if (data && reactFlowInstance && reactFlowBounds) {
-      const position = reactFlowInstance.project({
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
-      });
-      const newNode: FlowElement<NodeData> = {
-        id: data.id,
-        position: position,
-        data: { label: data.label, range: data.range },
-      };
-
-      setNodes((es) => es.concat(newNode));
-      setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
-    }
   };
 
   const onNodeDoubleClick = (
@@ -192,13 +172,13 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       <div
         className="reactflow-wrapper"
         ref={reactFlowWrapper}
-        style={{ height: 400 }}
+        style={{ height: 800 }}
       >
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onPaneReady={setReactFlowInstance}
-          onDrop={onDrop}
+          onPaneReady={(instance) => (reactFlowInstanceRef.current = instance)}
+          // onDrop={onDrop}
           onDragOver={onDragOver}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -209,13 +189,16 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           panOnScroll={true}
         ></ReactFlow>
       </div>
-      <SidebarComponent nodes={tempNodes} />
       <Menu id={CONTEXT_MENU_ID}>
-        <Item onClick={() => {}}>
-          Item 1
-        </Item>
+        <Item onClick={() => {}}>Item 1</Item>
         <Separator />
-        <Item onClick={(params: ItemParams<ItemProps, any>) => deleteNode(params.props?.id) }>🗑️ Delete</Item>
+        <Item
+          onClick={(params: ItemParams<ItemProps, any>) =>
+            deleteNode(params.props?.id)
+          }
+        >
+          🗑️ Delete
+        </Item>
       </Menu>
     </ReactFlowProvider>
   );
