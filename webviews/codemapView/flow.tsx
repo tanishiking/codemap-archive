@@ -170,6 +170,8 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       const fromParentNode = findContainingNode(nodes, data.from.range);
       if (!fromParentNode) return nodes;
 
+      const toRange = Range.fromIRange(data.to.range);
+      if (toRange.equals(fromParentNode.data.range)) return nodes;
 
       const reactFlowInstance = reactFlowInstanceRef.current;
       if (!reactFlowInstance) return nodes;
@@ -184,7 +186,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           x: fromParentNode.position.x + Math.random() * 200,
           y: fromParentNode.position.y + Math.random() * 200,
         }),
-        { label: data.to.label, range: Range.fromIRange(data.to.range) },
+        { label: data.to.label, range: toRange },
         toId
       );
       return nodes.concat([from, to]);
