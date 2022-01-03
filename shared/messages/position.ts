@@ -35,6 +35,13 @@ export class Position implements IPosition {
       (this.line === after.line && this.character <= after.character)
     );
   }
+  
+  public equals(other: IPosition): boolean {
+    return (
+      this.line == other.line &&
+      this.character == other.character
+    )
+  }
 }
 
 export interface IRange {
@@ -72,8 +79,16 @@ export class Range implements IRange {
     return (
       this.uri === inner.uri &&
       this.start.isBeforeOrEq(inner.start) &&
-      this.start.isAfterOrEq(inner.end)
+      this.end.isAfterOrEq(inner.end)
     );
+  }
+
+  public equals(other: IRange): boolean {
+    return (
+      this.uri == other.uri &&
+      this.start.equals(other.start) &&
+      this.end.equals(other.end)
+    )
   }
 }
 
