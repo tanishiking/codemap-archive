@@ -4,7 +4,7 @@ import { AddNode } from "../shared/messages/toWebview/addNode";
 import { Message } from "../shared/messages/toWebview/message";
 import { getMessageValidator } from "../shared/messages/fromWebview/message";
 import { getOpenInEditorValidator } from "../shared/messages/fromWebview/openInEditor";
-import { Range } from "../shared/messages/position";
+import { IRange } from "../shared/messages/position";
 import { Navigate } from "../shared/messages/toWebview/navigate";
 
 export class CodeMapPanel {
@@ -151,7 +151,7 @@ export class CodeMapPanel {
 			</html>`;
   }
 
-  private async openInEditor(range: Range): Promise<void> {
+  private async openInEditor(range: IRange): Promise<void> {
     const uri = vscode.Uri.parse(range.uri, true);
     const start = new vscode.Position(range.start.line, range.start.character);
     const selection = new vscode.Selection(start, start);

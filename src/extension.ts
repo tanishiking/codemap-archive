@@ -2,12 +2,12 @@
 // Import the module and reference it with the alias vscode in your code below
 import Ajv from "ajv";
 import * as vscode from "vscode";
-import { fromVSCodeRange } from "../shared/messages/position";
 import {
   AddNode,
   getAddNodeValidator,
 } from "../shared/messages/toWebview/AddNode";
 import { Navigate } from "../shared/messages/toWebview/navigate";
+import { Range } from "../shared/messages/position"
 import { ScopeSymbolsCodeLensProvider } from "./codelens";
 import { AddToCodeMap } from "./commands";
 import { DefinitionProviderTracker } from "./navigationProvider";
@@ -123,7 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
     const toSym = scopeSymbols[0]
     const to: AddNode = {
       label: toSym.name,
-      range: fromVSCodeRange(toSym.range, uri)
+      range: Range.fromVSCode(toSym.range, uri)
     }
 
     const origin = definitionProvider.findOrigin(uri, position)

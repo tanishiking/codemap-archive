@@ -1,10 +1,10 @@
 import Ajv, { JSONSchemaType, ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import { Range, rangeSchema } from "../position";
+import { IRange, rangeSchema } from "../position";
 
 export type OpenInEditor = {
   label: string
-  range: Range
+  range: IRange
 }
 
 const schema: JSONSchemaType<OpenInEditor> = {

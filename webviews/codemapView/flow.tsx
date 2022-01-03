@@ -1,5 +1,12 @@
 import * as React from "react";
-import { useRef, useEffect, DragEvent, MouseEvent, useCallback } from "react";
+import {
+  useRef,
+  useEffect,
+  DragEvent,
+  MouseEvent,
+  useCallback,
+  useMemo,
+} from "react";
 import { WebviewApi } from "vscode-webview";
 import ReactFlow, {
   ReactFlowInstance,
@@ -11,6 +18,7 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   XYPosition,
+  NodeTypesType,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -27,13 +35,16 @@ import { getAddNodeValidator } from "../../shared/messages/toWebview/AddNode";
 import { OpenInEditor } from "../../shared/messages/fromWebview/openInEditor";
 import { Message } from "../../shared/messages/fromWebview/message";
 
-import { NodeData } from "./temporalNode";
+import { NodeData } from "./NodeData";
 import { StateType } from "./persistence";
 import {
   getNavigateValidator,
   Navigate,
 } from "../../shared/messages/toWebview/navigate";
-import { Range, contains } from "../../shared/messages/position";
+import { Range, IRange } from "../../shared/messages/position";
+import { ScopeNodeComponent } from "./nodes/ScopeNode";
+import { createRefNode, createScopeNode } from "./nodeCreation";
+import { RefNodeComponent } from "./nodes/RefNode";
 
 const CONTEXT_MENU_ID = "react_flow_menu_id";
 
@@ -46,16 +57,16 @@ interface ItemProps {
 
 const findContainingNode = (
   nodes: Node<NodeData>[],
-  child: Range
+  child: IRange
 ): Node<NodeData> | null => {
   console.log(nodes);
   console.log(child);
-  const outers = nodes.filter((node) => contains(node.data.range, child));
+  const outers = nodes.filter((node) => node.data.range.contains(child));
   console.log(outers);
   if (outers.length === 0) return null;
   else
     return outers.sort((a, b) =>
-      contains(a.data.range, b.data.range) ? 1 : -1
+      a.data.range.contains(b.data.range) ? 1 : -1
     )[0];
 };
 
@@ -130,11 +141,10 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
                   y: prevPos.current.y + Math.random() * 200,
                 });
 
-            const newNode: Node<NodeData> = {
-              id: uuidv4(),
-              position: position,
-              data: { label: data.label, range: data.range },
-            };
+            const newNode: Node<NodeData> = createScopeNode(position, {
+              label: data.label,
+              range: Range.fromIRange(data.range),
+            });
             prevPos.current = position;
             setNodes((es) => es.concat(newNode));
             // setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
@@ -160,22 +170,23 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       const fromParentNode = findContainingNode(nodes, data.from.range);
       if (!fromParentNode) return nodes;
 
+
       const reactFlowInstance = reactFlowInstanceRef.current;
       if (!reactFlowInstance) return nodes;
-      const from: Node<NodeData> = {
-        id: fromId,
-        position: fromParentNode.position, // TODO: なんとかしたい
-        data: { label: data.from.label, range: data.from.range },
-        parentNode: fromParentNode.id,
-      };
-      const to: Node<NodeData> = {
-        id: toId,
-        position: reactFlowInstance.project({
+      const from: Node<NodeData> = createRefNode(
+        fromParentNode,
+        reactFlowInstance.project(fromParentNode.position), // TODO: なんとかしたい
+        { label: data.from.label, range: Range.fromIRange(data.from.range) },
+        fromId
+      );
+      const to: Node<NodeData> = createScopeNode(
+        reactFlowInstance.project({
           x: fromParentNode.position.x + Math.random() * 200,
           y: fromParentNode.position.y + Math.random() * 200,
         }),
-        data: { label: data.to.label, range: data.to.range },
-      };
+        { label: data.to.label, range: Range.fromIRange(data.to.range) },
+        toId
+      );
       return nodes.concat([from, to]);
     });
 
@@ -229,6 +240,14 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const onConnect = (params: Connection | Edge) =>
     setEdges((els) => addEdge(params, els));
 
+  const nodeTypes: NodeTypesType = useMemo(
+    () => ({
+      scope: ScopeNodeComponent,
+      ref: RefNodeComponent,
+    }),
+    []
+  );
+
   return (
     <ReactFlowProvider>
       <div
@@ -241,6 +260,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           edges={edges}
           onPaneReady={(instance) => (reactFlowInstanceRef.current = instance)}
           // onDrop={onDrop}
+          nodeTypes={nodeTypes}
           onDragOver={onDragOver}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

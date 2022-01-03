@@ -4,7 +4,7 @@ import {
   CodeLens,
   Command,
 } from "vscode";
-import { fromVSCodeRange } from "../shared/messages/position";
+import { Range } from "../shared/messages/position";
 import { AddNode } from "../shared/messages/toWebview/addNode";
 import { AddToCodeMap } from "./commands";
 import { ScopeSymbolsFinder } from "./scope";
@@ -17,7 +17,7 @@ export class ScopeSymbolsCodeLensProvider implements CodeLensProvider {
       const arg: AddNode = {
         label: sym.name,
         // kind: sym.kind,
-        range: fromVSCodeRange(sym.range, document.uri)
+        range: Range.fromVSCode(sym.range, document.uri)
       }
       const cmd: Command = {
         command: AddToCodeMap,
