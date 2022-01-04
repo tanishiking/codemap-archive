@@ -59,10 +59,10 @@ const findContainingNode = (
   nodes: Node<NodeData>[],
   child: IRange
 ): Node<NodeData> | null => {
-  console.log(nodes);
-  console.log(child);
+  // console.log(nodes);
+  // console.log(child);
   const outers = nodes.filter((node) => node.data.range.contains(child));
-  console.log(outers);
+  // console.log(outers);
   if (outers.length === 0) return null;
   else
     return outers.sort((a, b) =>
@@ -133,12 +133,12 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             // TODO: more smart position decision algorithm
             const position = !prevPos.current
               ? reactFlowInstance.project({
-                  x: (reactFlowBounds.right - reactFlowBounds.left) / 2,
-                  y: (reactFlowBounds.bottom - reactFlowBounds.top) / 2,
+                  x: (reactFlowBounds.right - reactFlowBounds.left) / 3,
+                  y: (reactFlowBounds.bottom - reactFlowBounds.top) / 3,
                 })
               : reactFlowInstance.project({
-                  x: prevPos.current.x + Math.random() * 200,
-                  y: prevPos.current.y + Math.random() * 200,
+                  x: prevPos.current.x + Math.random() * 50,
+                  y: prevPos.current.y + Math.random() * 50,
                 });
 
             const newNode: Node<NodeData> = createScopeNode(position, {
@@ -166,6 +166,9 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const addNavigate = useCallback((data: Navigate) => {
     const fromId = uuidv4();
     const toId = uuidv4();
+    const reactFlowBounds =
+      reactFlowWrapper.current?.getBoundingClientRect();
+    if (!reactFlowBounds) return;
     setNodes((nodes: Node[]) => {
       const fromParentNode = findContainingNode(nodes, data.from.range);
       if (!fromParentNode) return nodes;
@@ -177,14 +180,18 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       if (!reactFlowInstance) return nodes;
       const from: Node<NodeData> = createRefNode(
         fromParentNode,
-        reactFlowInstance.project(fromParentNode.position), // TODO: なんとかしたい
+        // When a node has a parent node its position is relative to the position of the parent node.
+        reactFlowInstance.project({
+          x: fromParentNode.position.x - reactFlowBounds.left + 1,
+          y: fromParentNode.position.y - reactFlowBounds.top + 1,
+        }), // TODO: なんとかしたい
         { label: data.from.label, range: Range.fromIRange(data.from.range) },
         fromId
       );
       const to: Node<NodeData> = createScopeNode(
         reactFlowInstance.project({
-          x: fromParentNode.position.x + Math.random() * 200,
-          y: fromParentNode.position.y + Math.random() * 200,
+          x: fromParentNode.position.x + Math.random() * 50,
+          y: fromParentNode.position.y + Math.random() * 50,
         }),
         { label: data.to.label, range: toRange },
         toId
@@ -219,7 +226,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     event.dataTransfer.dropEffect = "move";
   };
 
-  const onNodeDoubleClick = (
+  const onNodeDoubleClick = useCallback((
     event: MouseEvent,
     node: Node<NodeData | undefined>
   ) => {
@@ -234,10 +241,9 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         command: "open_in_editor",
         data: payload,
       };
-      console.log(message);
       props.vscode.postMessage(message);
     } else console.error(`No data available for nodeId: ${node.id}`);
-  };
+  }, [props.vscode]);
 
   const onConnect = (params: Connection | Edge) =>
     setEdges((els) => addEdge(params, els));
@@ -249,6 +255,8 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     }),
     []
   );
+
+  // console.log(nodes)
 
   return (
     <ReactFlowProvider>

@@ -38,10 +38,7 @@ export function createRefNode(
   const sizeData = size || defaultRefNodeSize;
   return {
     id: id || uuidv4(),
-    position: {
-       x: position.x + 1,
-       y: position.y + 1,
-    },
+    position: { x: 0, y: 0 },
     data: { ...data, size: sizeData },
     type: "ref",
     parentNode: parent.id,
