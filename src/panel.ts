@@ -143,9 +143,7 @@ export class CodeMapPanel {
 				<title>Code Map</title>
 			</head>
 			<body>
-				<h1 id="lines-of-code-counter">Code Map</h1>
-                <div id="app"></div>
-
+        <div id="app"></div>
 				<script src="${scriptUri}"></script>
 			</body>
 			</html>`;

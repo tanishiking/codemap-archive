@@ -133,8 +133,8 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             // TODO: more smart position decision algorithm
             const position = !prevPos.current
               ? reactFlowInstance.project({
-                  x: (reactFlowBounds.right - reactFlowBounds.left) / 3,
-                  y: (reactFlowBounds.bottom - reactFlowBounds.top) / 3,
+                  x: (reactFlowBounds.right - reactFlowBounds.left) / 4,
+                  y: (reactFlowBounds.bottom - reactFlowBounds.top) / 4,
                 })
               : reactFlowInstance.project({
                   x: prevPos.current.x + Math.random() * 50,
