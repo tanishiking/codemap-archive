@@ -3,20 +3,17 @@ import * as React from "react";
 import { NodeProps, Handle } from "react-flow-renderer";
 import { NodeData } from "../NodeData";
 
-const customNodeStyles = (size: {
-  height: number;
-  width: number;
-}): React.CSSProperties => {
-  return {
-    padding: "4px",
-    height: size.height,
-    width: size.width,
-  };
+const customNodeStyles: React.CSSProperties = {
+  padding: "4px",
 };
 
+export const defaultSize = {
+  width: 132,
+  height: 36,
+};
 export const RefNodeComponent = (props: NodeProps<NodeData>) => {
   return (
-    <div style={customNodeStyles(props.data.size)}>
+    <div style={customNodeStyles}>
       <Handle type="target" position="left" style={{ borderRadius: 0 }} />
       <div>{props.data.label}</div>
       <Handle

@@ -1,25 +1,33 @@
+import { Resizable } from "re-resizable";
 import * as React from "react";
 
 import { NodeProps, Handle } from "react-flow-renderer";
 import { NodeData } from "../NodeData";
 
-const customNodeStyles = (size: {
-  height: number;
-  width: number;
-}): React.CSSProperties => {
-  return {
-    background: "#9CA8B3",
-    color: "#FFF",
-    padding: "4px",
-    verticalAlign: "top",
-    height: size.height,
-    width: size.width,
-  };
+const customNodeStyles: React.CSSProperties = {
+  background: "#9CA8B3",
+  color: "#FFF",
+  padding: "4px",
+  verticalAlign: "top",
 };
 
+export const defaultSize = {
+  width: 344,
+  height: 72,
+};
 export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
   return (
-    <div style={customNodeStyles(props.data.size)}>
+    <Resizable
+      // DO NOT pass `defaultSize` here, data.size will be received from props when the webview was restored
+      defaultSize={props.data.size}
+      onResizeStop={(_e, _direction, _ref, d) => {
+        props.data.resizeNode(props.id, {
+          width: props.data.size.width + d.width,
+          height: props.data.size.height + d.height,
+        });
+      }}
+      style={customNodeStyles}
+    >
       <Handle type="target" position="left" style={{ borderRadius: 0 }} />
       <div>{props.data.label}</div>
       <Handle
@@ -28,6 +36,6 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
         id="b"
         style={{ top: "50%", borderRadius: 0 }}
       />
-    </div>
+    </Resizable>
   );
 };

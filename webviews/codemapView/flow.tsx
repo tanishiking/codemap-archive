@@ -19,6 +19,8 @@ import ReactFlow, {
   useEdgesState,
   XYPosition,
   NodeTypesType,
+  NodeChange,
+  EdgeChange,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -71,8 +73,8 @@ const findContainingNode = (
 };
 
 export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChangeOrig] = useNodesState([]);
+  const [edges, setEdges, onEdgesChangeOrig] = useEdgesState([]);
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
   // the temporal nodes resting on the sidebar
   // const [tempNodes, setTempNodes] = useState<TemporalNode[]>([]);
@@ -82,8 +84,24 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     id: CONTEXT_MENU_ID,
   });
 
+  const resizeNode = useCallback(
+    (nodeId: string, size: { width: number; height: number }): void => {
+      setNodes((nodes) => {
+        return nodes.map((node) => {
+          if (node.id === nodeId)
+            return {
+              ...node,
+              data: { ...node.data, size },
+              ...size,
+            };
+          else return node;
+        });
+      });
+    },
+    []
+  );
+
   const displayMenu = useCallback((e: React.MouseEvent, node: Node) => {
-    // console.log(`displayMenu ${node.id}`)
     show(e, { props: { id: node.id } });
   }, []);
 
@@ -97,6 +115,8 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
     );
   }, []);
+
+  // console.log(nodes);
 
   useEffect(() => {
     const previousState = props.vscode.getState();
@@ -144,6 +164,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             const newNode: Node<NodeData> = createScopeNode(position, {
               label: data.label,
               range: Range.fromIRange(data.range),
+              resizeNode,
             });
             prevPos.current = position;
             setNodes((es) => es.concat(newNode));
@@ -166,8 +187,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const addNavigate = useCallback((data: Navigate) => {
     const fromId = uuidv4();
     const toId = uuidv4();
-    const reactFlowBounds =
-      reactFlowWrapper.current?.getBoundingClientRect();
+    const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
     if (!reactFlowBounds) return;
     setNodes((nodes: Node[]) => {
       const fromParentNode = findContainingNode(nodes, data.from.range);
@@ -180,12 +200,11 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       if (!reactFlowInstance) return nodes;
       const from: Node<NodeData> = createRefNode(
         fromParentNode,
-        // When a node has a parent node its position is relative to the position of the parent node.
-        reactFlowInstance.project({
-          x: fromParentNode.position.x - reactFlowBounds.left + 1,
-          y: fromParentNode.position.y - reactFlowBounds.top + 1,
-        }), // TODO: なんとかしたい
-        { label: data.from.label, range: Range.fromIRange(data.from.range) },
+        {
+          label: data.from.label,
+          range: Range.fromIRange(data.from.range),
+          resizeNode,
+        },
         fromId
       );
       const to: Node<NodeData> = createScopeNode(
@@ -193,7 +212,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           x: fromParentNode.position.x + Math.random() * 50,
           y: fromParentNode.position.y + Math.random() * 50,
         }),
-        { label: data.to.label, range: toRange },
+        { label: data.to.label, range: toRange, resizeNode },
         toId
       );
       return nodes.concat([from, to]);
@@ -211,7 +230,20 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   // See:
   // https://code.visualstudio.com/api/extension-guides/webview#lifecycle
   // https://code.visualstudio.com/api/extension-guides/webview#persistence
-  useEffect(() => {
+  const onNodesChange = useCallback((chagnes: NodeChange[]) => {
+    console.log("onNodesChange");
+    onNodesChangeOrig(chagnes);
+    if (reactFlowInstanceRef.current) {
+      const state: StateType = {
+        flow: reactFlowInstanceRef.current.toObject(),
+        // tempNodes,
+      };
+      console.log(state)
+      props.vscode.setState(state);
+    }
+  }, []);
+  const onEdgesChange = useCallback((chagnes: EdgeChange[]) => {
+    onEdgesChangeOrig(chagnes);
     if (reactFlowInstanceRef.current) {
       const state: StateType = {
         flow: reactFlowInstanceRef.current.toObject(),
@@ -219,31 +251,31 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       };
       props.vscode.setState(state);
     }
-  }, [nodes]);
+  }, []);
 
   const onDragOver = (event: DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   };
 
-  const onNodeDoubleClick = useCallback((
-    event: MouseEvent,
-    node: Node<NodeData | undefined>
-  ) => {
-    event.preventDefault(); // (need this?)
-    const data = node.data;
-    if (data) {
-      const payload: OpenInEditor = {
-        label: data.label,
-        range: data.range,
-      };
-      const message: Message = {
-        command: "open_in_editor",
-        data: payload,
-      };
-      props.vscode.postMessage(message);
-    } else console.error(`No data available for nodeId: ${node.id}`);
-  }, [props.vscode]);
+  const onNodeDoubleClick = useCallback(
+    (event: MouseEvent, node: Node<NodeData | undefined>) => {
+      event.preventDefault(); // (need this?)
+      const data = node.data;
+      if (data) {
+        const payload: OpenInEditor = {
+          label: data.label,
+          range: data.range,
+        };
+        const message: Message = {
+          command: "open_in_editor",
+          data: payload,
+        };
+        props.vscode.postMessage(message);
+      } else console.error(`No data available for nodeId: ${node.id}`);
+    },
+    [props.vscode]
+  );
 
   const onConnect = (params: Connection | Edge) =>
     setEdges((els) => addEdge(params, els));
