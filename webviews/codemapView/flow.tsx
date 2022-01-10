@@ -21,6 +21,7 @@ import ReactFlow, {
   NodeTypesType,
   NodeChange,
   EdgeChange,
+  MiniMap,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -63,12 +64,14 @@ const findContainingNode = (
 ): Node<NodeData> | null => {
   // console.log(nodes);
   // console.log(child);
-  const outers = nodes.filter((node) => node.data.range.contains(child));
+  const outers = nodes.filter((node) =>
+    Range.fromIRange(node.data.range).contains(child)
+  );
   // console.log(outers);
   if (outers.length === 0) return null;
   else
     return outers.sort((a, b) =>
-      a.data.range.contains(b.data.range) ? 1 : -1
+      Range.fromIRange(a.data.range).contains(b.data.range) ? 1 : -1
     )[0];
 };
 
@@ -97,6 +100,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           else return node;
         });
       });
+      onNodesChange([]); // Persist the change
     },
     []
   );
@@ -122,7 +126,11 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     const previousState = props.vscode.getState();
     if (previousState) {
       const flow = previousState.flow;
-      setNodes(flow.nodes);
+      const nodes: Node<NodeData>[] = flow.nodes.map((node) => {
+        const newData = { ...node.data, resizeNode }; // reassign resizeNode
+        return { ...node, data: newData };
+      });
+      setNodes(nodes);
       setEdges(flow.edges);
       // TODO: restore the zooming state
       // useZoomPanHelper()
@@ -231,14 +239,12 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   // https://code.visualstudio.com/api/extension-guides/webview#lifecycle
   // https://code.visualstudio.com/api/extension-guides/webview#persistence
   const onNodesChange = useCallback((chagnes: NodeChange[]) => {
-    console.log("onNodesChange");
     onNodesChangeOrig(chagnes);
     if (reactFlowInstanceRef.current) {
       const state: StateType = {
         flow: reactFlowInstanceRef.current.toObject(),
         // tempNodes,
       };
-      console.log(state)
       props.vscode.setState(state);
     }
   }, []);
@@ -311,7 +317,9 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           onConnect={onConnect}
           zoomOnScroll={false}
           panOnScroll={true}
-        ></ReactFlow>
+        >
+          <MiniMap />
+        </ReactFlow>
       </div>
       <Menu id={CONTEXT_MENU_ID}>
         <Item onClick={() => {}}>Item 1</Item>

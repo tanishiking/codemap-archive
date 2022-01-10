@@ -1,8 +1,8 @@
-import { Range } from "../../shared/messages/position";
+import { IRange } from "../../shared/messages/position";
 
 export interface NodeData {
   label: string;
-  range: Range;
+  range: IRange;
   size: { // remember the size information in NodeData, in order to calculate the resized size of node
     width: number
     height: number
