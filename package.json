@@ -71,8 +71,10 @@
     "webpack-cli": "^4.8.0"
   },
   "dependencies": {
+    "@toast-ui/react-editor": "^3.1.2",
     "ajv": "^8.7.1",
     "ajv-formats": "^2.1.1",
+    "elkjs": "^0.7.1",
     "node-cache": "^5.1.2",
     "object-hash": "^2.2.0",
     "re-resizable": "^6.9.1",

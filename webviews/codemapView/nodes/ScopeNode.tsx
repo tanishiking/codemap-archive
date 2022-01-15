@@ -1,6 +1,11 @@
 import { Resizable } from "re-resizable";
 import * as React from "react";
 
+import "@toast-ui/editor/dist/toastui-editor.css";
+import "./editor.css"
+
+import { Editor } from "@toast-ui/react-editor";
+
 import { NodeProps, Handle } from "react-flow-renderer";
 import { NodeData } from "../NodeData";
 
@@ -29,7 +34,16 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
       style={customNodeStyles}
     >
       <Handle type="target" position="left" style={{ borderRadius: 0 }} />
-      <div>{props.data.label}</div>
+      <Editor
+        initialValue={props.data.label}
+        // previewStyle={"global" as PreviewStyle}
+        height={`${props.data.size.height}px`}
+        hideModeSwitch={true}
+        toolbarItems={[]}
+        // useCommandShortcut={true}
+        usageStatistics={false}
+        viewer={false}
+      />
       <Handle
         type="source"
         position="right"
