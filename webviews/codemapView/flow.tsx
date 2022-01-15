@@ -5,6 +5,7 @@ import {
   DragEvent,
   MouseEvent,
   useCallback,
+  useReducer,
   useMemo,
 } from "react";
 import { WebviewApi } from "vscode-webview";
@@ -22,6 +23,9 @@ import ReactFlow, {
   NodeChange,
   EdgeChange,
   MiniMap,
+  applyNodeChanges,
+  applyEdgeChanges,
+  OnNodesChange,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -34,7 +38,10 @@ import {
 import "react-contexify/dist/ReactContexify.css";
 
 import { getMessageValidator } from "../../shared/messages/toWebview/message";
-import { getAddNodeValidator } from "../../shared/messages/toWebview/AddNode";
+import {
+  AddNode,
+  getAddNodeValidator,
+} from "../../shared/messages/toWebview/AddNode";
 import { OpenInEditor } from "../../shared/messages/fromWebview/openInEditor";
 import { Message } from "../../shared/messages/fromWebview/message";
 
@@ -75,85 +82,88 @@ const findContainingNode = (
     )[0];
 };
 
+interface FlowState {
+  nodes: Node<NodeData>[];
+  edges: Edge[];
+}
+type ActionType =
+  | { type: "deleteNode"; id: string }
+  | { type: "restore" }
+  | { type: "nodeChange"; changes: NodeChange[] }
+  | { type: "edgeChange"; changes: EdgeChange[] }
+  | { type: "connect"; params: Connection | Edge }
+  | { type: "resize"; id: string; width: number; height: number }
+  | { type: "addNode"; param: AddNode }
+  | { type: "addNavigation"; param: Navigate };
+
+const initialState: FlowState = {
+  nodes: [],
+  edges: [],
+};
+
 export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
-  const [nodes, setNodes, onNodesChangeOrig] = useNodesState([]);
-  const [edges, setEdges, onEdgesChangeOrig] = useEdgesState([]);
-  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
-  // the temporal nodes resting on the sidebar
-  // const [tempNodes, setTempNodes] = useState<TemporalNode[]>([]);
-  const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
-  const prevPos = useRef<XYPosition | null>(null);
-  const { show } = useContextMenu({
-    id: CONTEXT_MENU_ID,
-  });
-
-  const resizeNode = useCallback(
-    (nodeId: string, size: { width: number; height: number }): void => {
-      setNodes((nodes) => {
-        return nodes.map((node) => {
-          if (node.id === nodeId)
+  const reducer: React.Reducer<FlowState, ActionType> = useCallback(
+    (prevState, action) => {
+      switch (action.type) {
+        case "deleteNode":
+          const nodeId = action.id;
+          return {
+            ...prevState,
+            nodes: prevState.nodes.filter(
+              (node) => nodeId !== node.id && nodeId !== node.parentNode
+            ),
+            edges: prevState.edges.filter(
+              (edge) => edge.source !== nodeId && edge.target !== nodeId
+            ),
+          };
+        case "nodeChange":
+          return {
+            ...prevState,
+            nodes: applyNodeChanges(action.changes, prevState.nodes),
+          };
+        case "edgeChange":
+          return {
+            ...prevState,
+            edges: applyEdgeChanges(action.changes, prevState.edges),
+          };
+        case "connect":
+          return {
+            ...prevState,
+            edges: addEdge(action.params, prevState.edges),
+          };
+        case "resize":
+          const size = { width: action.width, height: action.height };
+          const nodes = prevState.nodes.map((node) => {
+            if (node.id === action.id)
+              return {
+                ...node,
+                data: { ...node.data, size },
+                ...size,
+              };
+            else return node;
+          });
+          return {
+            ...prevState,
+            nodes,
+          };
+        case "restore":
+          const restored = props.vscode.getState();
+          if (restored) {
+            const flow = restored.flow;
+            const nodes: Node<NodeData>[] = flow.nodes.map((node) => {
+              const newData = { ...node.data, resizeNode }; // reassign resizeNode
+              return { ...node, data: newData };
+            });
+            // TODO: restore the zooming state
             return {
-              ...node,
-              data: { ...node.data, size },
-              ...size,
+              ...prevState,
+              nodes: nodes,
+              edges: flow.edges,
             };
-          else return node;
-        });
-      });
-      onNodesChange([]); // Persist the change
-    },
-    []
-  );
-
-  const displayMenu = useCallback((e: React.MouseEvent, node: Node) => {
-    show(e, { props: { id: node.id } });
-  }, []);
-
-  const deleteNode = useCallback((nodeId?: string) => {
-    // TODO: show confirmation
-    if (nodeId === undefined) return;
-    setNodes((nodes) =>
-      nodes.filter((node) => nodeId !== node.id && nodeId !== node.parentNode)
-    );
-    setEdges((edges) =>
-      edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
-    );
-  }, []);
-
-  // console.log(nodes);
-
-  useEffect(() => {
-    const previousState = props.vscode.getState();
-    if (previousState) {
-      const flow = previousState.flow;
-      const nodes: Node<NodeData>[] = flow.nodes.map((node) => {
-        const newData = { ...node.data, resizeNode }; // reassign resizeNode
-        return { ...node, data: newData };
-      });
-      setNodes(nodes);
-      setEdges(flow.edges);
-      // TODO: restore the zooming state
-      // useZoomPanHelper()
-      // const [x = 0, y = 0] = flow.position;
-      // transform({ x, y, zoom: flow.zoom || 0 });
-      // setTempNodes(previousState.tempNodes);
-    }
-    const validateMessage = getMessageValidator();
-    const validateAddNode = getAddNodeValidator();
-    const validateNavigate = getNavigateValidator();
-
-    window.addEventListener("message", (event: MessageEvent) => {
-      const message = event.data; // The json data that the extension sent
-      if (!validateMessage(message)) {
-        console.error(validateMessage.errors);
-        return;
-      } else {
-        if (message.command === "add_node") {
-          const data = message.data;
-          if (!validateAddNode(data)) {
-            console.error(validateAddNode.errors);
-            return;
+          } else {
+            return prevState;
           }
+        case "addNode": {
           const reactFlowBounds =
             reactFlowWrapper.current?.getBoundingClientRect();
           const reactFlowInstance = reactFlowInstanceRef.current;
@@ -170,93 +180,153 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
                 });
 
             const newNode: Node<NodeData> = createScopeNode(position, {
-              label: data.label,
-              range: Range.fromIRange(data.range),
+              label: action.param.label,
+              range: Range.fromIRange(action.param.range),
               resizeNode,
             });
             prevPos.current = position;
-            setNodes((es) => es.concat(newNode));
-            // setTempNodes((nodes) => nodes.filter((n) => n.id !== newNode.id));
+            const nodes = prevState.nodes.concat(newNode);
+            return {
+              ...prevState,
+              nodes,
+            };
           } else {
-            // TODO: show error message
+            console.error("reactFlowInstance not yet ready");
+            return prevState;
           }
+        }
+        case "addNavigation": {
+          const fromId = uuidv4();
+          const toId = uuidv4();
+          const reactFlowBounds =
+            reactFlowWrapper.current?.getBoundingClientRect();
+          const reactFlowInstance = reactFlowInstanceRef.current;
+          if (reactFlowBounds && reactFlowInstance) {
+            const fromParentNode = findContainingNode(
+              prevState.nodes,
+              action.param.from.range
+            );
+            if (!fromParentNode) return prevState;
+
+            const toRange = Range.fromIRange(action.param.to.range);
+            if (toRange.equals(fromParentNode.data.range)) return prevState;
+
+            const from: Node<NodeData> = createRefNode(
+              fromParentNode,
+              {
+                label: action.param.from.label,
+                range: Range.fromIRange(action.param.from.range),
+                resizeNode,
+              },
+              fromId
+            );
+
+            const to: Node<NodeData> = createScopeNode(
+              reactFlowInstance.project({
+                x: fromParentNode.position.x + Math.random() * 50,
+                y: fromParentNode.position.y + Math.random() * 50,
+              }),
+              { label: action.param.to.label, range: toRange, resizeNode },
+              toId
+            );
+            const newEdge: Edge = {
+              id: uuidv4(),
+              source: fromId,
+              target: toId,
+            };
+            const nodes = prevState.nodes.concat([from, to]);
+            const edges = prevState.edges.concat(newEdge);
+            return {
+              ...prevState,
+              nodes,
+              edges,
+            };
+          } else {
+            return prevState;
+          }
+        }
+
+        default:
+          return prevState;
+      }
+    },
+    []
+  );
+  const [state, innerDispatch] = useReducer(reducer, initialState);
+
+  // Persist the state of webview
+  // See:
+  // https://code.visualstudio.com/api/extension-guides/webview#lifecycle
+  // https://code.visualstudio.com/api/extension-guides/webview#persistence
+  const persist = useCallback(() => {
+    if (reactFlowInstanceRef.current) {
+      const state: StateType = {
+        flow: reactFlowInstanceRef.current.toObject(),
+      };
+      props.vscode.setState(state);
+    }
+  }, [props])
+  const dispatch = useCallback((action: ActionType) => {
+    innerDispatch(action)
+    persist() // TODO: deleteNode した後に persist する状態が古い気がする
+  }, [])
+
+  const onNodesChange = useCallback((changes) => {
+    dispatch({ type: "nodeChange", changes });
+  }, []);
+  const onEdgesChange = useCallback((changes) => {
+    dispatch({ type: "edgeChange", changes });
+  }, []);
+
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
+  const prevPos = useRef<XYPosition | null>(null);
+  const { show } = useContextMenu({
+    id: CONTEXT_MENU_ID,
+  });
+
+  const resizeNode = useCallback(
+    (nodeId: string, size: { width: number; height: number }): void => {
+      dispatch({ type: "resize", id: nodeId, ...size });
+      onNodesChange([]); // Persist the change
+    },
+    []
+  );
+
+  const displayMenu = useCallback((e: React.MouseEvent, node: Node) => {
+    show(e, { props: { id: node.id } });
+  }, []);
+
+  useEffect(() => {
+    dispatch({ type: "restore" });
+
+    const validateMessage = getMessageValidator();
+    const validateAddNode = getAddNodeValidator();
+    const validateNavigate = getNavigateValidator();
+
+    window.addEventListener("message", (event: MessageEvent) => {
+      const message = event.data; // The json data that the extension sent
+      if (!validateMessage(message)) {
+        console.error(validateMessage.errors);
+        return;
+      } else {
+        if (message.command === "add_node") {
+          const data = message.data;
+          if (!validateAddNode(data)) {
+            console.error(validateAddNode.errors);
+            return;
+          }
+          dispatch({ type: "addNode", param: data });
         } else if (message.command === "navigate") {
           const data = message.data;
           if (!validateNavigate(data)) {
             console.error(validateNavigate.errors);
             return;
           }
-          addNavigate(data);
+          dispatch({ type: "addNavigation", param: data });
         }
       }
     });
-  }, []);
-
-  const addNavigate = useCallback((data: Navigate) => {
-    const fromId = uuidv4();
-    const toId = uuidv4();
-    const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
-    if (!reactFlowBounds) return;
-    setNodes((nodes: Node[]) => {
-      const fromParentNode = findContainingNode(nodes, data.from.range);
-      if (!fromParentNode) return nodes;
-
-      const toRange = Range.fromIRange(data.to.range);
-      if (toRange.equals(fromParentNode.data.range)) return nodes;
-
-      const reactFlowInstance = reactFlowInstanceRef.current;
-      if (!reactFlowInstance) return nodes;
-      const from: Node<NodeData> = createRefNode(
-        fromParentNode,
-        {
-          label: data.from.label,
-          range: Range.fromIRange(data.from.range),
-          resizeNode,
-        },
-        fromId
-      );
-      const to: Node<NodeData> = createScopeNode(
-        reactFlowInstance.project({
-          x: fromParentNode.position.x + Math.random() * 50,
-          y: fromParentNode.position.y + Math.random() * 50,
-        }),
-        { label: data.to.label, range: toRange, resizeNode },
-        toId
-      );
-      return nodes.concat([from, to]);
-    });
-
-    const newEdge: Edge = {
-      id: uuidv4(),
-      source: fromId,
-      target: toId,
-    };
-    setEdges((edges) => edges.concat([newEdge]));
-  }, []);
-
-  // Persist the state of webview
-  // See:
-  // https://code.visualstudio.com/api/extension-guides/webview#lifecycle
-  // https://code.visualstudio.com/api/extension-guides/webview#persistence
-  const onNodesChange = useCallback((chagnes: NodeChange[]) => {
-    onNodesChangeOrig(chagnes);
-    if (reactFlowInstanceRef.current) {
-      const state: StateType = {
-        flow: reactFlowInstanceRef.current.toObject(),
-        // tempNodes,
-      };
-      props.vscode.setState(state);
-    }
-  }, []);
-  const onEdgesChange = useCallback((chagnes: EdgeChange[]) => {
-    onEdgesChangeOrig(chagnes);
-    if (reactFlowInstanceRef.current) {
-      const state: StateType = {
-        flow: reactFlowInstanceRef.current.toObject(),
-        // tempNodes,
-      };
-      props.vscode.setState(state);
-    }
   }, []);
 
   const onDragOver = (event: DragEvent) => {
@@ -283,8 +353,10 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     [props.vscode]
   );
 
-  const onConnect = (params: Connection | Edge) =>
-    setEdges((els) => addEdge(params, els));
+  const onConnect = useCallback(
+    (params: Connection | Edge) => dispatch({ type: "connect", params }),
+    []
+  );
 
   const nodeTypes: NodeTypesType = useMemo(
     () => ({
@@ -304,10 +376,9 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         style={{ height: 800 }}
       >
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
+          nodes={state.nodes}
+          edges={state.edges}
           onPaneReady={(instance) => (reactFlowInstanceRef.current = instance)}
-          // onDrop={onDrop}
           nodeTypes={nodeTypes}
           onDragOver={onDragOver}
           onNodesChange={onNodesChange}
@@ -325,9 +396,11 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         <Item onClick={() => {}}>Item 1</Item>
         <Separator />
         <Item
-          onClick={(params: ItemParams<ItemProps, any>) =>
-            deleteNode(params.props?.id)
-          }
+          onClick={(params: ItemParams<ItemProps, any>) => {
+            const target = params.props?.id;
+            if (target) dispatch({ type: "deleteNode", id: target });
+            // TODO: error handling
+          }}
         >
           🗑️ Delete
         </Item>
