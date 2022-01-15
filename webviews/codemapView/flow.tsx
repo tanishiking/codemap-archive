@@ -5,9 +5,9 @@ import {
   DragEvent,
   MouseEvent,
   useCallback,
-  useReducer,
   useMemo,
 } from "react";
+import { AsyncActionHandlers, useReducerAsync } from "use-reducer-async";
 import { WebviewApi } from "vscode-webview";
 import ReactFlow, {
   ReactFlowInstance,
@@ -87,12 +87,14 @@ interface FlowState {
   edges: Edge[];
 }
 type ActionType =
+  | { type: "update"; nodes: Node<NodeData>[]; edges: Edge[] }
   | { type: "deleteNode"; id: string }
   | { type: "restore" }
   | { type: "nodeChange"; changes: NodeChange[] }
   | { type: "edgeChange"; changes: EdgeChange[] }
   | { type: "connect"; params: Connection | Edge }
-  | { type: "resize"; id: string; width: number; height: number }
+  | { type: "resize"; id: string; width: number; height: number };
+type AsyncActionType =
   | { type: "addNode"; param: AddNode }
   | { type: "addNavigation"; param: Navigate };
 
@@ -105,6 +107,12 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const reducer: React.Reducer<FlowState, ActionType> = useCallback(
     (prevState, action) => {
       switch (action.type) {
+        case "update":
+          return {
+            ...prevState,
+            nodes: action.nodes,
+            edges: action.edges,
+          };
         case "deleteNode":
           const nodeId = action.id;
           return {
@@ -163,96 +171,105 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           } else {
             return prevState;
           }
-        case "addNode": {
-          const reactFlowBounds =
-            reactFlowWrapper.current?.getBoundingClientRect();
-          const reactFlowInstance = reactFlowInstanceRef.current;
-          if (reactFlowInstance && reactFlowBounds) {
-            // TODO: more smart position decision algorithm
-            const position = !prevPos.current
-              ? reactFlowInstance.project({
-                  x: (reactFlowBounds.right - reactFlowBounds.left) / 4,
-                  y: (reactFlowBounds.bottom - reactFlowBounds.top) / 4,
-                })
-              : reactFlowInstance.project({
-                  x: prevPos.current.x + Math.random() * 50,
-                  y: prevPos.current.y + Math.random() * 50,
-                });
-
-            const newNode: Node<NodeData> = createScopeNode(position, {
-              label: action.param.label,
-              range: Range.fromIRange(action.param.range),
-              resizeNode,
-            });
-            prevPos.current = position;
-            const nodes = prevState.nodes.concat(newNode);
-            return {
-              ...prevState,
-              nodes,
-            };
-          } else {
-            console.error("reactFlowInstance not yet ready");
-            return prevState;
-          }
-        }
-        case "addNavigation": {
-          const fromId = uuidv4();
-          const toId = uuidv4();
-          const reactFlowBounds =
-            reactFlowWrapper.current?.getBoundingClientRect();
-          const reactFlowInstance = reactFlowInstanceRef.current;
-          if (reactFlowBounds && reactFlowInstance) {
-            const fromParentNode = findContainingNode(
-              prevState.nodes,
-              action.param.from.range
-            );
-            if (!fromParentNode) return prevState;
-
-            const toRange = Range.fromIRange(action.param.to.range);
-            if (toRange.equals(fromParentNode.data.range)) return prevState;
-
-            const from: Node<NodeData> = createRefNode(
-              fromParentNode,
-              {
-                label: action.param.from.label,
-                range: Range.fromIRange(action.param.from.range),
-                resizeNode,
-              },
-              fromId
-            );
-
-            const to: Node<NodeData> = createScopeNode(
-              reactFlowInstance.project({
-                x: fromParentNode.position.x + Math.random() * 50,
-                y: fromParentNode.position.y + Math.random() * 50,
-              }),
-              { label: action.param.to.label, range: toRange, resizeNode },
-              toId
-            );
-            const newEdge: Edge = {
-              id: uuidv4(),
-              source: fromId,
-              target: toId,
-            };
-            const nodes = prevState.nodes.concat([from, to]);
-            const edges = prevState.edges.concat(newEdge);
-            return {
-              ...prevState,
-              nodes,
-              edges,
-            };
-          } else {
-            return prevState;
-          }
-        }
-
         default:
           return prevState;
       }
     },
     []
   );
-  const [state, innerDispatch] = useReducer(reducer, initialState);
+  const asyncActionHandlers: AsyncActionHandlers<
+    React.Reducer<FlowState, ActionType>,
+    AsyncActionType
+  > = {
+    addNode:
+      ({ dispatch, getState, signal }) =>
+      async (action) => {
+        // await new Promise(r => setTimeout(r, action.ms));
+        const prevState = getState();
+        const reactFlowBounds =
+          reactFlowWrapper.current?.getBoundingClientRect();
+        const reactFlowInstance = reactFlowInstanceRef.current;
+        if (reactFlowInstance && reactFlowBounds) {
+          // TODO: more smart position decision algorithm
+          const position = !prevPos.current
+            ? reactFlowInstance.project({
+                x: (reactFlowBounds.right - reactFlowBounds.left) / 4,
+                y: (reactFlowBounds.bottom - reactFlowBounds.top) / 4,
+              })
+            : reactFlowInstance.project({
+                x: prevPos.current.x + Math.random() * 50,
+                y: prevPos.current.y + Math.random() * 50,
+              });
+
+          const newNode: Node<NodeData> = createScopeNode(position, {
+            label: action.param.label,
+            range: Range.fromIRange(action.param.range),
+            resizeNode,
+          });
+          prevPos.current = position;
+          const nodes = prevState.nodes.concat(newNode);
+          dispatch({ type: "update", nodes: nodes, edges: prevState.edges });
+        } else {
+          console.error("reactFlowInstance not yet ready");
+          return;
+        }
+        // dispatch({ type: 'END_SLEEP' });
+      },
+    addNavigation:
+      ({ dispatch, getState, signal }) =>
+      async (action) => {
+        const prevState = getState();
+        const fromId = uuidv4();
+        const toId = uuidv4();
+        const reactFlowBounds =
+          reactFlowWrapper.current?.getBoundingClientRect();
+        const reactFlowInstance = reactFlowInstanceRef.current;
+        if (reactFlowBounds && reactFlowInstance) {
+          const fromParentNode = findContainingNode(
+            prevState.nodes,
+            action.param.from.range
+          );
+          if (!fromParentNode) return;
+
+          const toRange = Range.fromIRange(action.param.to.range);
+          if (toRange.equals(fromParentNode.data.range)) return;
+
+          const from: Node<NodeData> = createRefNode(
+            fromParentNode,
+            {
+              label: action.param.from.label,
+              range: Range.fromIRange(action.param.from.range),
+              resizeNode,
+            },
+            fromId
+          );
+
+          const to: Node<NodeData> = createScopeNode(
+            reactFlowInstance.project({
+              x: fromParentNode.position.x + Math.random() * 50,
+              y: fromParentNode.position.y + Math.random() * 50,
+            }),
+            { label: action.param.to.label, range: toRange, resizeNode },
+            toId
+          );
+          const newEdge: Edge = {
+            id: uuidv4(),
+            source: fromId,
+            target: toId,
+          };
+          const nodes = prevState.nodes.concat([from, to]);
+          const edges = prevState.edges.concat(newEdge);
+          dispatch({ type: "update", nodes, edges });
+        } else {
+          return;
+        }
+      },
+  };
+  const [state, innerDispatch] = useReducerAsync(
+    reducer,
+    initialState,
+    asyncActionHandlers
+  );
 
   // Persist the state of webview
   // See:
@@ -265,11 +282,11 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
       };
       props.vscode.setState(state);
     }
-  }, [props])
-  const dispatch = useCallback((action: ActionType) => {
-    innerDispatch(action)
-    persist() // TODO: deleteNode した後に persist する状態が古い気がする
-  }, [])
+  }, [props]);
+  const dispatch = useCallback((action: ActionType | AsyncActionType) => {
+    innerDispatch(action);
+    persist(); // TODO: deleteNode した後に persist する状態が古い気がする
+  }, []);
 
   const onNodesChange = useCallback((changes) => {
     dispatch({ type: "nodeChange", changes });

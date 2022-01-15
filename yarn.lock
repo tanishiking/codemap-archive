@@ -4428,6 +4428,11 @@ uri-js@^4.2.2:
   dependencies:
     punycode "^2.1.0"
 
+use-reducer-async@^2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/use-reducer-async/-/use-reducer-async-2.1.0.tgz#6ae3e6d243b68ab0bad0441ea4caa989cbac263b"
+  integrity sha512-FI83120WteeUGoYaPXWJ/w5HVbF/fYJHLJRxnjpJ6xH9QiufmeumfuNWxssEvlICZWSN5m3GwQDiBXRA72tiwg==
+
 util-deprecate@^1.0.2, util-deprecate@~1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/util-deprecate/-/util-deprecate-1.0.2.tgz#450d4dc9fa70de732762fbd2d4a28981419a0ccf"
