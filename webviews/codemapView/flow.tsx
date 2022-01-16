@@ -55,6 +55,7 @@ import { Range, IRange } from "../../shared/messages/position";
 import { ScopeNodeComponent } from "./nodes/ScopeNode";
 import { createRefNode, createScopeNode } from "./nodeCreation";
 import { RefNodeComponent } from "./nodes/RefNode";
+import { getLayoutedPositions } from "./layout";
 
 const CONTEXT_MENU_ID = "react_flow_menu_id";
 
@@ -191,22 +192,32 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
         const reactFlowInstance = reactFlowInstanceRef.current;
         if (reactFlowInstance && reactFlowBounds) {
           // TODO: more smart position decision algorithm
-          const position = !prevPos.current
-            ? reactFlowInstance.project({
-                x: (reactFlowBounds.right - reactFlowBounds.left) / 4,
-                y: (reactFlowBounds.bottom - reactFlowBounds.top) / 4,
-              })
-            : reactFlowInstance.project({
-                x: prevPos.current.x + Math.random() * 50,
-                y: prevPos.current.y + Math.random() * 50,
-              });
+          const position = {
+            x: (reactFlowBounds.right - reactFlowBounds.left) / 4,
+            y: (reactFlowBounds.bottom - reactFlowBounds.top) / 4,
+          };
 
           const newNode: Node<NodeData> = createScopeNode(position, {
             label: action.param.label,
             range: Range.fromIRange(action.param.range),
             resizeNode,
           });
-          prevPos.current = position;
+          if (prevNodeId.current) {
+            const dummyEdge: Edge = {
+              id: uuidv4(),
+              source: prevNodeId.current,
+              target: newNode.id,
+            };
+            const newPos = (
+              await getLayoutedPositions(
+                [newNode],
+                prevState.nodes,
+                prevState.edges.concat(dummyEdge)
+              )
+            ).get(newNode.id);
+            if (newPos) newNode.position = newPos;
+          }
+          prevNodeId.current = newNode.id;
           const nodes = prevState.nodes.concat(newNode);
           dispatch({ type: "update", nodes: nodes, edges: prevState.edges });
         } else {
@@ -297,7 +308,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
 
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
-  const prevPos = useRef<XYPosition | null>(null);
+  const prevNodeId = useRef<string | null>(null);
   const { show } = useContextMenu({
     id: CONTEXT_MENU_ID,
   });

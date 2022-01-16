@@ -1,9 +1,8 @@
-import { ElkEdge, ElkNode } from "elkjs";
-import { Edge, Node } from "react-flow-renderer";
+import ELK, { ElkEdge, ElkNode } from "elkjs/lib/elk.bundled.js";
+import { Edge, Node, XYPosition } from "react-flow-renderer";
 import { NodeData } from "./NodeData";
 
-/*
-const getLayoutedElements = async (
+export const getLayoutedPositions = async (
   newNodes: Node<NodeData>[],
   nodes: Node<NodeData>[],
   edges: Edge[]
@@ -25,15 +24,9 @@ const getLayoutedElements = async (
   registerNodes(formatted.children || []);
 
   return idToPos;
-  // return nodes.map((node: Node<NodeData>) => {
-  //   const newPos = idToPos.get(node.id);
-  //   if (newPos) node.position = newPos;
-  //   return node;
-  // });
 };
-*/
 
-export function toElkNodes(nodes: Node<NodeData>[], edges: Edge[]): ElkNode {
+function toElkNodes(nodes: Node<NodeData>[], edges: Edge[]): ElkNode {
   const elkEdges: ElkEdge[] = edges.map((edge) => {
     return {
       id: edge.id,
