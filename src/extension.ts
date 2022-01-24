@@ -1,6 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import Ajv from "ajv";
 import * as vscode from "vscode";
 import {
   AddNode,
@@ -14,38 +11,27 @@ import { DefinitionProviderTracker } from "./navigationProvider";
 import { CodeMapPanel } from "./panel";
 import { ScopeSymbolsFinder } from "./scope";
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  // Use the console to output diagnostic information (console.log) and errors (console.error)
-  // This line of code will only be executed once when your extension is activated
-  console.log('Congratulations, your extension "codemap" is now active!');
 
   const validateAddNode = getAddNodeValidator();
 
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with registerCommand
-  // The commandId parameter must match the command field in package.json
-  let disposable1 = vscode.commands.registerCommand(
-    "codemap.helloWorld",
-    () => {
-      // The code you place here will be executed every time your command is executed
-      // Display a message box to the user
-      // vscode.window.showInformationMessage('Hello World from codemap!');
-      CodeMapPanel.createOrShow(context.extensionUri);
+  const commandNew = vscode.commands.registerCommand(
+    "codemap.new",
+    async () => {
+      await CodeMapPanel.createNewMap(context.extensionUri);
     }
   );
 
-  const disposable2 = vscode.commands.registerCommand(
+  const addDisposable = vscode.commands.registerCommand(
     AddToCodeMap,
-    (...args: any[]) => {
+    async (...args: any[]) => {
       if (args.length === 0) {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
         const selection = editor.selection;
         const text = editor.document.getText(selection);
 
-        const panel = CodeMapPanel.createOrShow(context.extensionUri);
+        const panel = await CodeMapPanel.showOrNew(context.extensionUri);
         if (!panel) return;
         const start = selection.start;
         const end = selection.end;
@@ -70,9 +56,11 @@ export function activate(context: vscode.ExtensionContext) {
           console.error(`Invalid argument: ${validateAddNode.errors}`);
           return;
         }
-        const panel = CodeMapPanel.createOrShow(context.extensionUri);
+        // TODO: wait for the webview to listen the message, currently unvisible webview can't receive the message.
+        const panel = await CodeMapPanel.showOrNew(context.extensionUri);
         if (!panel) return;
-        return panel.addNode(arg);
+        const result = await panel.addNode(arg);
+        return result
       }
     }
   );
@@ -115,6 +103,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const uri = e.textEditor.document.uri;
     const position = selection.start;
+
+    // If the cursor move in one line, it had probably not came from code navigation.
     if (withinOneLine([position, uri.toString()], prevPosition)) return;
 
     const finder = new ScopeSymbolsFinder(uri)
@@ -142,14 +132,16 @@ export function activate(context: vscode.ExtensionContext) {
       from,
       to
     }
-    const panel = CodeMapPanel.createOrShow(context.extensionUri);
+    // If there's a panel instance, add to the map. Otherwise, just ignore.
+    // We need to show the map, otherwise JS in the webview doesn't work (of cource) and the messages will be ignored.
+    const panel = CodeMapPanel.showCurrentPanel();
     if (!panel) return;
     return panel.traceNavigation(payload);
   });
 
   context.subscriptions.push(
-    disposable1,
-    disposable2,
+    commandNew,
+    addDisposable,
     codeLensProviderDisposable,
     definitionProviderDisposable
   );

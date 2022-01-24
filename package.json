@@ -10,14 +10,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:codemap.helloWorld"
+    "onCommand:codemap.new"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "codemap.helloWorld",
-        "title": "Hello World"
+        "command": "codemap.new",
+        "title": "CodeMap: Create a new CodeMap"
       },
       {
         "command": "codemap.add",

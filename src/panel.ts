@@ -8,32 +8,85 @@ import { IRange } from "../shared/messages/position";
 import { Navigate } from "../shared/messages/toWebview/navigate";
 
 export class CodeMapPanel {
-  public static readonly title = "Code Map";
+  // public static readonly title = "Code Map";
   public static readonly viewType = "codeMap";
   public static currentPanel: CodeMapPanel | null = null;
   private panel: vscode.WebviewPanel;
   private extensionUri: vscode.Uri;
   private disposables: vscode.Disposable[] = [];
 
-  public static createOrShow(extensionUri: vscode.Uri) {
+  public static lastOpenedTitle: string | null = null;
+
+  public static async createNewMap(
+    extensionUri: vscode.Uri
+  ): Promise<CodeMapPanel | null> {
     const column = vscode.window.activeTextEditor?.viewColumn;
 
+    const input = await vscode.window.showInputBox({
+      title: "Map title",
+      validateInput: (input: string) => {
+        if (input.length === 0) return "Title cannot be empty.";
+        else return ""; // valid
+      },
+    });
+    if (!input) return null;
+    const panel = vscode.window.createWebviewPanel(
+      CodeMapPanel.viewType,
+      input,
+      column || vscode.ViewColumn.Beside,
+      CodeMapPanel.getWebviewOptions(extensionUri)
+    );
+
+    CodeMapPanel.lastOpenedTitle = input;
+    CodeMapPanel.currentPanel = new CodeMapPanel(panel, extensionUri);
+    return this.currentPanel;
+  }
+
+  public static showCurrentPanel() {
+    if (CodeMapPanel.currentPanel) {
+      if (!CodeMapPanel.currentPanel.panel.visible)
+        CodeMapPanel.currentPanel.panel.reveal(vscode.ViewColumn.Beside);
+      return this.currentPanel;
+    } else return null
+  }
+
+  /**
+   * If there's already an opened map, just show it.
+   * If any maps had opened in this instance, show it.
+   * Otherwise, propt to create a new map.
+   */
+  public static async showOrNew(extensionUri: vscode.Uri): Promise<CodeMapPanel | null> {
     // If we already have a panel, show it.
     if (CodeMapPanel.currentPanel) {
       if (!CodeMapPanel.currentPanel.panel.visible)
         CodeMapPanel.currentPanel.panel.reveal(vscode.ViewColumn.Beside);
       return this.currentPanel;
     } else {
-      const panel = vscode.window.createWebviewPanel(
-        CodeMapPanel.viewType,
-        CodeMapPanel.title,
-        column || vscode.ViewColumn.Beside,
-        CodeMapPanel.getWebviewOptions(extensionUri)
-      );
-
-      CodeMapPanel.currentPanel = new CodeMapPanel(panel, extensionUri);
-      return this.currentPanel;
+      if (CodeMapPanel.lastOpenedTitle) {
+        return this.show(extensionUri, CodeMapPanel.lastOpenedTitle)
+      } else {
+        return this.createNewMap(extensionUri)
+      }
     }
+
+  }
+
+  public static async show(
+    extensionUri: vscode.Uri,
+    title: string,
+  ): Promise<CodeMapPanel | null> {
+    const column = vscode.window.activeTextEditor?.viewColumn;
+
+    const panel = vscode.window.createWebviewPanel(
+      CodeMapPanel.viewType,
+      title,
+      column || vscode.ViewColumn.Beside,
+      CodeMapPanel.getWebviewOptions(extensionUri)
+    );
+
+      // CodeMapPanel.lastOpenedTitle = input
+    CodeMapPanel.currentPanel = new CodeMapPanel(panel, extensionUri);
+    return this.currentPanel;
   }
 
   public async addNode(payload: AddNode): Promise<boolean> {
@@ -47,8 +100,8 @@ export class CodeMapPanel {
   public async traceNavigation(payload: Navigate): Promise<boolean> {
     const message: Message = {
       command: "navigate",
-      data: payload
-    }
+      data: payload,
+    };
     return this.panel.webview.postMessage(message);
   }
 
@@ -88,7 +141,7 @@ export class CodeMapPanel {
   }
 
   private updateWebview(): void {
-    this.panel.title = CodeMapPanel.title;
+    // this.panel.title = ;
     this.panel.webview.html = CodeMapPanel.getHtmlForWebview(
       this.panel.webview,
       this.extensionUri
