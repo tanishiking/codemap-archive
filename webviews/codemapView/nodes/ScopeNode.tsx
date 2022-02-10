@@ -1,11 +1,6 @@
 import { Resizable } from "re-resizable";
 import * as React from "react";
 
-import "@toast-ui/editor/dist/toastui-editor.css";
-import "./editor.css"
-
-import { Editor } from "@toast-ui/react-editor";
-
 import { NodeProps, Handle } from "react-flow-renderer";
 import { NodeData } from "../NodeData";
 
@@ -34,6 +29,11 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
       style={customNodeStyles}
     >
       <Handle type="target" position="left" style={{ borderRadius: 0 }} />
+
+      {/* TODO: maxHeight is not working */}
+      <div contentEditable={true} style={{maxHeight: props.data.size.height}}>{props.data.label}</div>
+
+      {/*
       <Editor
         initialValue={props.data.label}
         // previewStyle={"global" as PreviewStyle}
@@ -44,6 +44,7 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
         usageStatistics={false}
         viewer={false}
       />
+      */}
       <Handle
         type="source"
         position="right"
