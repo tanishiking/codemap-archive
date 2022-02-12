@@ -14,13 +14,12 @@ export const defaultSize = {
 export const RefNodeComponent = (props: NodeProps<NodeData>) => {
   return (
     <div style={customNodeStyles}>
-      <Handle type="target" position="left" style={{ borderRadius: 0 }} />
       <div>{props.data.label}</div>
       <Handle
         type="source"
-        position="right"
-        id="b"
-        style={{ top: "50%", borderRadius: 0 }}
+        position="bottom"
+        id="source"
+        style={{ top: "50%", borderRadius: "10%" }}
       />
     </div>
   );

@@ -7,10 +7,12 @@ import { NodeProps, Handle } from "react-flow-renderer";
 import { NodeData } from "../NodeData";
 
 const customNodeStyles: React.CSSProperties = {
-  background: "#FCFCF7",
+  backgroundColor: "#FFF",
   color: "#000000",
-  padding: "1px",
+  padding: "2px",
   verticalAlign: "top",
+  borderStyle: "solid",
+  borderColor: "#393A34",
 };
 
 export const defaultSize = {
@@ -19,7 +21,7 @@ export const defaultSize = {
 };
 export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
   const handleChange = (event: ContentEditableEvent) => {
-    props.data.updateContent(props.id, event.target.value)
+    props.data.updateContent(props.id, event.target.value);
   };
   return (
     <Resizable
@@ -33,7 +35,7 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
       }}
       style={customNodeStyles}
     >
-      <Handle type="target" position="left" style={{ borderRadius: 0 }} />
+      <Handle type="target" position="top" style={{ borderRadius: 0 }} />
 
       {/* TODO: maxHeight is not working */}
       <ContentEditable
@@ -58,9 +60,9 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
       */}
       <Handle
         type="source"
-        position="right"
+        position="bottom"
         id="b"
-        style={{ top: "50%", borderRadius: 0 }}
+        style={{ borderRadius: 0 }}
       />
     </Resizable>
   );

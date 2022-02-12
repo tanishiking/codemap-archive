@@ -1,4 +1,4 @@
-import { Node, XYPosition } from "react-flow-renderer";
+import { Node, XYPosition, Position } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import { NodeData } from "./NodeData";
 import { defaultSize as defaultScopeNodeSize } from "./nodes/ScopeNode";
@@ -9,9 +9,9 @@ type WithoutSize = Omit<NodeData, "size">;
 export function createScopeNode(
   position: XYPosition,
   data: WithoutSize,
-  id?: string,
+  id?: string
 ): Node<NodeData> {
-  const size = defaultScopeNodeSize
+  const size = defaultScopeNodeSize;
   return {
     id: id || uuidv4(),
     position,
@@ -24,9 +24,9 @@ export function createScopeNode(
 export function createRefNode(
   parent: Node<NodeData>,
   data: WithoutSize,
-  id?: string,
+  id?: string
 ): Node<NodeData> {
-  const size = defaultRefNodeSize
+  const size = defaultRefNodeSize;
   return {
     id: id || uuidv4(),
     position: { x: 0, y: 0 },

@@ -26,6 +26,7 @@ import ReactFlow, {
   applyNodeChanges,
   applyEdgeChanges,
   OnNodesChange,
+  MarkerType,
 } from "react-flow-renderer";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -96,7 +97,8 @@ type ActionType =
   | { type: "edgeChange"; changes: EdgeChange[] }
   | { type: "connect"; params: Connection | Edge }
   | { type: "resize"; id: string; width: number; height: number }
-  | { type: "updateContent"; id: string; newContent: string };
+  | { type: "updateContent"; id: string; newContent: string }
+  | { type: "formatRefNodes"; parentId: string };
 type AsyncActionType =
   | { type: "addNode"; param: AddNode }
   | { type: "addNavigation"; param: Navigate };
@@ -158,11 +160,30 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             nodes,
           };
         case "updateContent": {
+          const nodes = prevState.nodes.map((node) => {
+            if (node.id === action.id) {
+              return {
+                ...node,
+                data: { ...node.data, label: action.newContent },
+              };
+            } else return node;
+          });
+          const updated = {
+            ...prevState,
+            nodes,
+          };
+          return reducer(updated, {
+            type: "formatRefNodes",
+            parentId: action.id,
+          });
+        }
+
+        case "formatRefNodes": {
           // parentNode should be former than child node
           let outerBlock: HTMLElement | null = null;
           let blocks: Map<string, Element> = new Map();
           const nodes = prevState.nodes.map((node) => {
-            if (node.id === action.id) {
+            if (node.id === action.parentId) {
               outerBlock = node.data.innerRef.current;
               if (outerBlock) {
                 blocks = new Map(
@@ -171,19 +192,19 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
                   ).map((b) => [b.getAttribute(DATA_REFNODE_ID_ATTR) || "", b])
                 );
               }
-              return {
-                ...node,
-                data: { ...node.data, label: action.newContent },
-              };
+              return node;
             } else if (outerBlock && node.parentNode!! && blocks.has(node.id)) {
               const innerRect = blocks.get(node.id)!.getBoundingClientRect();
               const x =
-                innerRect.left - outerBlock.getBoundingClientRect().left;
-              const y = Math.max(innerRect.top - outerBlock.getBoundingClientRect().top, 0)
+                innerRect.right - outerBlock.getBoundingClientRect().left;
+              const y = Math.max(
+                innerRect.top - outerBlock.getBoundingClientRect().top,
+                0
+              );
               // adjust refNode's position
               return {
                 ...node,
-                position: {x, y},
+                position: { x, y },
               };
             } else return node;
           });
@@ -317,10 +338,15 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             id: uuidv4(),
             source: fromId,
             target: toId,
+            markerEnd: { type: MarkerType.ArrowClosed, color: "#32a1ce" },
+            label: "reference",
+            labelShowBg: false,
+            // By default all edges are below the nodes. In order to be able to render edges on top of a group (or just a normal node) we introduced the new z-index option for edges. By default all nodes have z-index: 0. When you pass z-index:1, the edge is on top.
+            // https://github.com/wbkd/react-flow/pull/1555
+            zIndex: 1,
+            style: { stroke: "#32a1ce", strokeWidth: "2px" }
           };
 
-          // Add a contentedtable=false span whose id is
-          // ${parent scopeNode's id}-${refNode's id}
           const nodes = prevState.nodes
             .map((node) => {
               if (node.id === fromParentNode.id)
@@ -338,7 +364,20 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             .concat([from, to]);
           // const nodes = prevState.nodes.concat([from, to]);
           const edges = prevState.edges.concat(newEdge);
-          dispatch({ type: "update", nodes, edges });
+          const updated = {
+            ...prevState,
+            nodes,
+            edges,
+          };
+          const newState = reducer(updated, {
+            type: "formatRefNodes",
+            parentId: fromParentNode.id,
+          });
+          dispatch({
+            type: "update",
+            nodes: newState.nodes,
+            edges: newState.edges,
+          });
         } else {
           return;
         }
@@ -490,6 +529,9 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           onConnect={onConnect}
           zoomOnScroll={false}
           panOnScroll={true}
+          style={{
+            backgroundColor: "#f6f8fa",
+          }}
         >
           <MiniMap />
         </ReactFlow>
