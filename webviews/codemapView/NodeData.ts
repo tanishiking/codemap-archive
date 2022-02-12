@@ -8,6 +8,7 @@ export interface NodeData {
     height: number
   };
   resizeNode: (id: string, size: { width: number; height: number }) => void;
+  updateContent: (id: string, newContent: string) => void
 }
 
 // export interface UpdatableNodeData extends NodeData {

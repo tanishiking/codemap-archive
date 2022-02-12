@@ -1,21 +1,27 @@
 import { Resizable } from "re-resizable";
 import * as React from "react";
+import { useRef, useState } from "react";
+import ContentEditable, { ContentEditableEvent } from "react-contenteditable";
 
 import { NodeProps, Handle } from "react-flow-renderer";
 import { NodeData } from "../NodeData";
 
 const customNodeStyles: React.CSSProperties = {
-  background: "#9CA8B3",
-  color: "#FFF",
-  padding: "4px",
+  background: "#FCFCF7",
+  color: "#000000",
+  padding: "1px",
   verticalAlign: "top",
 };
 
 export const defaultSize = {
-  width: 344,
+  width: 240,
   height: 72,
 };
 export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
+  const innerRef = useRef<HTMLElement>(null);
+  const handleChange = (event: ContentEditableEvent) => {
+    props.data.updateContent(props.id, event.target.value)
+  };
   return (
     <Resizable
       // DO NOT pass `defaultSize` here, data.size will be received from props when the webview was restored
@@ -31,7 +37,13 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
       <Handle type="target" position="left" style={{ borderRadius: 0 }} />
 
       {/* TODO: maxHeight is not working */}
-      <div contentEditable={true} style={{maxHeight: props.data.size.height}}>{props.data.label}</div>
+      <ContentEditable
+        innerRef={innerRef}
+        html={props.data.label} // TODO: rename label to html or something
+        disabled={false} // use true to disable editing
+        onChange={handleChange} // handle innerHTML change
+        tagName="article"
+      />
 
       {/*
       <Editor

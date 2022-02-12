@@ -4,6 +4,6 @@ import { NodeData } from "./NodeData";
 
 export interface StateType {
   // omit resizeNode, since we can't restore a function
-  // otherwise, we'll get resizeNode is not a function error.
-  flow: FlowExportObject<Omit<NodeData, 'resizeNode'>>;
+  // otherwise, we'll get resizeNode and updateContent is not a function error.
+  flow: FlowExportObject<Omit<NodeData, 'resizeNode' | 'updateContent'>>;
 }

@@ -94,7 +94,8 @@ type ActionType =
   | { type: "nodeChange"; changes: NodeChange[] }
   | { type: "edgeChange"; changes: EdgeChange[] }
   | { type: "connect"; params: Connection | Edge }
-  | { type: "resize"; id: string; width: number; height: number };
+  | { type: "resize"; id: string; width: number; height: number }
+  | { type: "updateContent"; id: string; newContent: string };
 type AsyncActionType =
   | { type: "addNode"; param: AddNode }
   | { type: "addNavigation"; param: Navigate };
@@ -155,12 +156,26 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             ...prevState,
             nodes,
           };
+        case "updateContent": {
+          const nodes = prevState.nodes.map((node) => {
+            if (node.id === action.id)
+              return {
+                ...node,
+                data: { ...node.data, label: action.newContent },
+              };
+            else return node;
+          });
+          return {
+            ...prevState,
+            nodes,
+          };
+        }
         case "restore":
           const restored = props.vscode.getState();
           if (restored) {
             const flow = restored.flow;
             const nodes: Node<NodeData>[] = flow.nodes.map((node) => {
-              const newData = { ...node.data, resizeNode }; // reassign resizeNode
+              const newData = { ...node.data, resizeNode, updateContent }; // reassign resizeNode
               return { ...node, data: newData };
             });
             // TODO: restore the zooming state
@@ -201,6 +216,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             label: action.param.label,
             range: Range.fromIRange(action.param.range),
             resizeNode,
+            updateContent,
           });
           if (prevNodeId.current) {
             const dummyEdge: Edge = {
@@ -251,6 +267,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
               label: action.param.from.label,
               range: Range.fromIRange(action.param.from.range),
               resizeNode,
+              updateContent,
             },
             fromId
           );
@@ -260,7 +277,12 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
               x: fromParentNode.position.x + Math.random() * 50,
               y: fromParentNode.position.y + Math.random() * 50,
             }),
-            { label: action.param.to.label, range: toRange, resizeNode },
+            {
+              label: action.param.to.label,
+              range: toRange,
+              resizeNode,
+              updateContent,
+            },
             toId
           );
           const newEdge: Edge = {
@@ -316,6 +338,13 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   const resizeNode = useCallback(
     (nodeId: string, size: { width: number; height: number }): void => {
       dispatch({ type: "resize", id: nodeId, ...size });
+      onNodesChange([]); // Persist the change
+    },
+    []
+  );
+  const updateContent = useCallback(
+    (nodeId: string, newContent: string): void => {
+      dispatch({ type: "updateContent", id: nodeId, newContent });
       onNodesChange([]); // Persist the change
     },
     []
