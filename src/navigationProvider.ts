@@ -60,12 +60,14 @@ export class DefinitionProviderTracker implements DefinitionProvider {
     // }
 
     const locationLinks = (await this.executeCommand(document.uri, position)) || [];
+    console.log(JSON.stringify(locationLinks))
     const items: ValueSetItem<Origin>[] = locationLinks.map((loc) => {
+      const uri = ("uri" in loc) ? loc.uri : loc.targetUri
+      const range = ("range" in loc) ? loc.range : loc.targetSelectionRange || loc.targetRange
       const key: CacheKey = {
-        uri: loc.targetUri.toString(),
-        start: loc.targetSelectionRange?.start || loc.targetRange.start,
+        uri: uri.toString(),
+        start: range.start,
       };
-      console.log(`definition: ${JSON.stringify(key)}`);
       const value: Origin = {
         uri: document.uri.toString(),
         position: position,
@@ -80,7 +82,7 @@ export class DefinitionProviderTracker implements DefinitionProvider {
   }
 
   private executeCommand(uri: vscode.Uri, pos: vscode.Position) {
-    return vscode.commands.executeCommand<vscode.LocationLink[]>(
+    return vscode.commands.executeCommand<vscode.LocationLink[] | vscode.Location[]>(
       "vscode.executeDefinitionProvider",
       uri,
       pos
