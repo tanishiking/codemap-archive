@@ -34,6 +34,7 @@ export function createRefNode(
     type: "ref",
     parentNode: parent.id,
     extent: "parent",
+    draggable: false,
     ...size,
   };
 }

@@ -1,3 +1,4 @@
+import * as React from "react";
 import { IRange } from "../../shared/messages/position";
 
 export interface NodeData {
@@ -7,6 +8,7 @@ export interface NodeData {
     width: number
     height: number
   };
+  innerRef: React.RefObject<HTMLElement>;
   resizeNode: (id: string, size: { width: number; height: number }) => void;
   updateContent: (id: string, newContent: string) => void
 }

@@ -18,7 +18,6 @@ export const defaultSize = {
   height: 72,
 };
 export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
-  const innerRef = useRef<HTMLElement>(null);
   const handleChange = (event: ContentEditableEvent) => {
     props.data.updateContent(props.id, event.target.value)
   };
@@ -38,7 +37,7 @@ export const ScopeNodeComponent = (props: NodeProps<NodeData>) => {
 
       {/* TODO: maxHeight is not working */}
       <ContentEditable
-        innerRef={innerRef}
+        innerRef={props.data.innerRef}
         html={props.data.label} // TODO: rename label to html or something
         disabled={false} // use true to disable editing
         onChange={handleChange} // handle innerHTML change

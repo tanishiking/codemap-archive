@@ -58,6 +58,10 @@ import { RefNodeComponent } from "./nodes/RefNode";
 import { getLayoutedPositions } from "./layout";
 
 const CONTEXT_MENU_ID = "react_flow_menu_id";
+const INEDITABLE_CLASS = "ineditable";
+const DATA_REFNODE_ID_ATTR = "data-refnode-id";
+
+import "./flow.css";
 
 /**
  * id: node id
@@ -70,12 +74,9 @@ const findContainingNode = (
   nodes: Node<NodeData>[],
   child: IRange
 ): Node<NodeData> | null => {
-  // console.log(nodes);
-  // console.log(child);
   const outers = nodes.filter((node) =>
     Range.fromIRange(node.data.range).contains(child)
   );
-  // console.log(outers);
   if (outers.length === 0) return null;
   else
     return outers.sort((a, b) =>
@@ -157,13 +158,34 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             nodes,
           };
         case "updateContent": {
+          // parentNode should be former than child node
+          let outerBlock: HTMLElement | null = null;
+          let blocks: Map<string, Element> = new Map();
           const nodes = prevState.nodes.map((node) => {
-            if (node.id === action.id)
+            if (node.id === action.id) {
+              outerBlock = node.data.innerRef.current;
+              if (outerBlock) {
+                blocks = new Map(
+                  Array.from(
+                    outerBlock.getElementsByClassName(INEDITABLE_CLASS)
+                  ).map((b) => [b.getAttribute(DATA_REFNODE_ID_ATTR) || "", b])
+                );
+              }
               return {
                 ...node,
                 data: { ...node.data, label: action.newContent },
               };
-            else return node;
+            } else if (outerBlock && node.parentNode!! && blocks.has(node.id)) {
+              const innerRect = blocks.get(node.id)!.getBoundingClientRect();
+              const x =
+                innerRect.left - outerBlock.getBoundingClientRect().left;
+              const y = Math.max(innerRect.top - outerBlock.getBoundingClientRect().top, 0)
+              // adjust refNode's position
+              return {
+                ...node,
+                position: {x, y},
+              };
+            } else return node;
           });
           return {
             ...prevState,
@@ -175,10 +197,14 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           if (restored) {
             const flow = restored.flow;
             const nodes: Node<NodeData>[] = flow.nodes.map((node) => {
-              const newData = { ...node.data, resizeNode, updateContent }; // reassign resizeNode
+              const newData = {
+                ...node.data,
+                resizeNode,
+                updateContent,
+                innerRef: React.createRef<HTMLElement>(),
+              }; // reassign resizeNode
               return { ...node, data: newData };
             });
-            // TODO: restore the zooming state
             return {
               ...prevState,
               nodes: nodes,
@@ -206,7 +232,6 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           reactFlowWrapper.current?.getBoundingClientRect();
         const reactFlowInstance = reactFlowInstanceRef.current;
         if (reactFlowInstance && reactFlowBounds) {
-          // TODO: more smart position decision algorithm
           const position = {
             x: (reactFlowBounds.right - reactFlowBounds.left) / 4,
             y: (reactFlowBounds.bottom - reactFlowBounds.top) / 4,
@@ -217,6 +242,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             range: Range.fromIRange(action.param.range),
             resizeNode,
             updateContent,
+            innerRef: React.createRef<HTMLElement>(),
           });
           if (prevNodeId.current) {
             const dummyEdge: Edge = {
@@ -264,10 +290,11 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
           const from: Node<NodeData> = createRefNode(
             fromParentNode,
             {
-              label: action.param.from.label,
+              label: "",
               range: Range.fromIRange(action.param.from.range),
               resizeNode,
               updateContent,
+              innerRef: React.createRef<HTMLElement>(),
             },
             fromId
           );
@@ -282,6 +309,7 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
               range: toRange,
               resizeNode,
               updateContent,
+              innerRef: React.createRef<HTMLElement>(),
             },
             toId
           );
@@ -290,7 +318,25 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
             source: fromId,
             target: toId,
           };
-          const nodes = prevState.nodes.concat([from, to]);
+
+          // Add a contentedtable=false span whose id is
+          // ${parent scopeNode's id}-${refNode's id}
+          const nodes = prevState.nodes
+            .map((node) => {
+              if (node.id === fromParentNode.id)
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    label:
+                      node.data.label +
+                      `<span class="${INEDITABLE_CLASS}" ${DATA_REFNODE_ID_ATTR}="${fromId}" contentEditable="false">${action.param.from.label}</span>`,
+                  },
+                };
+              else return node;
+            })
+            .concat([from, to]);
+          // const nodes = prevState.nodes.concat([from, to]);
           const edges = prevState.edges.concat(newEdge);
           dispatch({ type: "update", nodes, edges });
         } else {
@@ -310,10 +356,11 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
   // https://code.visualstudio.com/api/extension-guides/webview#persistence
   const persist = useCallback(() => {
     if (reactFlowInstanceRef.current) {
-      const state: StateType = {
-        flow: reactFlowInstanceRef.current.toObject(),
-      };
-      props.vscode.setState(state);
+      // TODO: ref object を JSON stringify しようとして死ぬので、なんとかしてそれは object 化するの避けたい
+      //  const state: StateType = {
+      //    flow: reactFlowInstanceRef.current.toObject(),
+      //  };
+      // props.vscode.setState(state);
     }
   }, [props]);
   const dispatch = useCallback((action: ActionType | AsyncActionType) => {
@@ -422,8 +469,6 @@ export const FlowComponent = (props: { vscode: WebviewApi<StateType> }) => {
     }),
     []
   );
-
-  // console.log(nodes)
 
   return (
     <ReactFlowProvider>
