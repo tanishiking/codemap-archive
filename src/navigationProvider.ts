@@ -60,7 +60,6 @@ export class DefinitionProviderTracker implements DefinitionProvider {
     // }
 
     const locationLinks = (await this.executeCommand(document.uri, position)) || [];
-    console.log(JSON.stringify(locationLinks))
     const items: ValueSetItem<Origin>[] = locationLinks.map((loc) => {
       const uri = ("uri" in loc) ? loc.uri : loc.targetUri
       const range = ("range" in loc) ? loc.range : loc.targetSelectionRange || loc.targetRange
