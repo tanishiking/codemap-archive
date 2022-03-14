@@ -93,8 +93,9 @@ export function activate(context: vscode.ExtensionContext) {
     "",
   ];
   vscode.window.onDidChangeTextEditorSelection(async (e) => {
-    if (e.kind !== vscode.TextEditorSelectionChangeKind.Command) return;
+    if (e.kind !== undefined && e.kind !== vscode.TextEditorSelectionChangeKind.Command) return;
     if (e.selections.length < 1) return;
+
 
     // const finder = new ScopeSymbolsFinder(document)
     // const scopeSymbols = await finder.getScopeSymbols()
